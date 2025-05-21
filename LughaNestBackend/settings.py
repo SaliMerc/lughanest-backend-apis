@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'silk',
     'rest_framework',
     'rest_framework_simplejwt',
+    'drf_yasg',
 ]
 
 MIDDLEWARE = [
@@ -79,7 +80,6 @@ WSGI_APPLICATION = 'LughaNestBackend.wsgi.application'
 
 AUTH_USER_MODEL = 'lugha_app.MyUser'
 
-AUTOSLUG_SLUGIFY_FUNCTION = 'django.utils.text.slugify'
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
@@ -135,7 +135,6 @@ SILK_PYTHON_PROFILER = True
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-            # Fallback if the JWT auth fails
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PARSER_CLASSES': [
