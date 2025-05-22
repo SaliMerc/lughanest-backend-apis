@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.db.models import CharField
@@ -11,10 +13,11 @@ class MyUser(AbstractUser):
     display_name=CharField(unique=True, max_length=255, blank=True, null=True)
     phone_number = models.CharField(unique=True, max_length=255, blank=True, null=True)
     profile_picture = models.ImageField(upload_to='profile_pictures', blank=True, null=True)
+    otp = models.CharField(unique=True, blank=True, null=True, max_length=6)
+    otp_expiry = models.DateTimeField(blank=True, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
-
 
     def __str__(self):
         return self.email

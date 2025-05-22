@@ -6,10 +6,11 @@ from .models import MyUser
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.MyUser
-        fields = ['id', 'username', 'email', 'password','first_name','last_name','display_name','phone_number','city','country','profile_picture']
+        fields = ['id', 'username', 'email', 'password','first_name','last_name','display_name','phone_number','city','country','profile_picture','is_active']
 
     def create(self, validated_data):
-        user=MyUser.objects.create_user(**validated_data)
+        validated_data.pop('is_active', None)
+        user=MyUser.objects.create_user(**validated_data, is_active=False)
         return user
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
