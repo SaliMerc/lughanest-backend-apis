@@ -334,3 +334,46 @@ class UserViewSet(viewsets.ViewSet):
             return Response({"success":"Your account was verified successfully"},status=status.HTTP_200_OK)
         except MyUser.DoesNotExist:
             return Response({"detail":"Your Email account has changed. To revert to your old email, update your email address."},status=status.HTTP_400_BAD_REQUEST)
+
+class BlogViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+    def get_queryset(self):
+        return Blog.objects.all()
+
+    def get_serializer(self, *args, **kwargs):
+        return BlogSerializer(*args, **kwargs)
+
+    @action(detail=False, methods=['GET'], url_path='all-blog-items')
+    def all_blog_items(self, request):
+        blogs=self.get_queryset()
+        serializer = self.get_serializer(blogs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['GET'], url_path='blog-detail')
+    def blog_detail(self, request, pk=None):
+        try:
+            blog = self.get_queryset().get(pk=pk)
+            serializer = self.get_serializer(blog)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Blog.DoesNotExist:
+            return Response({"message":"Blog does not exist."})
+
+class LegalItemsViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        return LegalItem.objects.all()
+
+    def get_serializer(self, *args, **kwargs):
+        return LegalItemsSerializer(*args, **kwargs)
+
+    @action(detail=False, methods=['GET'], url_path='legal-items')
+    def legal_items(self, request):
+        legal_items = self.get_queryset().first()
+        serializer = self.get_serializer(legal_items)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+
+

@@ -80,6 +80,14 @@ WSGI_APPLICATION = 'LughaNestBackend.wsgi.application'
 
 AUTH_USER_MODEL = 'lugha_app.MyUser'
 
+"""For session and cookie security"""
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_AGE = 3600
+
+SESSION_COOKIE_SAMESITE = None
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False
+
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases

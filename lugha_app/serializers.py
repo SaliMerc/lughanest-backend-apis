@@ -6,7 +6,7 @@ from .models import MyUser
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.MyUser
-        fields = ['id', 'username', 'email', 'password','first_name','last_name','display_name','phone_number','city','country','profile_picture','is_active']
+        fields = ['id', 'username', 'email', 'password','first_name','last_name','display_name','city','country','is_active','profile_picture']
 
     def create(self, validated_data):
         validated_data.pop('is_active', None)
@@ -16,4 +16,14 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = MyUser
-        fields = ['email','first_name','last_name','display_name', 'phone_number', 'profile_picture']
+        fields = ['email','display_name', 'profile_picture']
+
+class BlogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Blog
+        fields = '__all__'
+
+class LegalItemsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.LegalItem
+        fields = '__all__'
