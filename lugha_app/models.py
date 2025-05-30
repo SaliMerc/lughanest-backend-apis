@@ -15,6 +15,10 @@ class MyUser(AbstractUser):
     profile_picture = models.ImageField(upload_to='profile_pictures', blank=True, null=True)
     otp = models.CharField(unique=True, blank=True, null=True, max_length=6)
     otp_expiry = models.DateTimeField(blank=True, null=True)
+    verified_at=models.DateTimeField(blank=True, null=True)
+
+    """In case the user decides to update their existing email with a new one"""
+    updated_email=models.EmailField(unique=True, blank=True, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
