@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'silk',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'drf_yasg',
 ]
 

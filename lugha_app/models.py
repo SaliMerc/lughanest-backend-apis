@@ -20,12 +20,19 @@ class MyUser(AbstractUser):
     display_name=CharField(unique=True, max_length=255, blank=True, null=True)
     profile_picture = models.ImageField(upload_to='profile_pictures', blank=True, null=True)
     accepted_terms_and_conditions=models.BooleanField(default=False, blank=False, null=False)
+    languages_spoken = models.JSONField(
+        default=dict,
+        blank=True,
+        null=True,
+        help_text="Stores languages and proficiency levels as {'english': 'fluent', 'spanish': 'intermediate'}"
+    )
     otp = models.CharField(unique=True, blank=True, null=True, max_length=6)
     otp_expiry = models.DateTimeField(blank=True, null=True)
     verified_at=models.DateTimeField(blank=True, null=True)
 
     """In case the user decides to update their existing email with a new one"""
     updated_email=models.EmailField(unique=True, blank=True, null=True)
+    scheduled_deletion_date=models.DateTimeField(blank=True, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']

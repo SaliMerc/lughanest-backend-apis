@@ -6,7 +6,7 @@ from .models import MyUser
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.MyUser
-        fields = ['id', 'username', 'email', 'password','first_name','last_name','display_name','city','country','is_active','profile_picture']
+        fields = ['id', 'username', 'email', 'password','first_name','last_name','display_name','city','country','is_active','profile_picture','accepted_terms_and_conditions','languages_spoken']
 
     def create(self, validated_data):
         validated_data.pop('is_active', None)
@@ -16,7 +16,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = MyUser
-        fields = ['email','display_name', 'profile_picture']
+        fields = ['email','display_name', 'profile_picture', 'languages_spoken']
 
 class BlogSerializer(serializers.ModelSerializer):
     class Meta:

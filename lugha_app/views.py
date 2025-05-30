@@ -14,7 +14,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken,TokenError
 
 from LughaNestBackend import settings
 from lugha_app.models import *
@@ -335,6 +335,49 @@ class UserViewSet(viewsets.ViewSet):
         except MyUser.DoesNotExist:
             return Response({"detail":"Your Email account has changed. To revert to your old email, update your email address."},status=status.HTTP_400_BAD_REQUEST)
 
+    """To allow the users to delete their accounts"""
+    @action(detail=False, methods=['DELETE'], url_path='delete-account')
+    def delete_account(self,request):
+        user=request.user
+        user.scheduled_deletion_date=timezone.now()+timedelta(days=7)
+        user.save()
+        return Response({"message":"Your account is scheduled to be deleted in seven days"},status=status.HTTP_200_OK)
+
+    """To allow the users to reverse the account deletion"""
+    @action(detail=False, methods=['POST'], url_path='undo-account-deletion')
+    def undo_account_deletion(self, request):
+        user = request.user
+        user.scheduled_deletion_date = None
+        user.save()
+        return Response({"message": "Your account deletion request has been cancelled."}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['POST'], url_path='logout')
+    def logout(self, request):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return Response(
+                {"error": "You must be logged in to log out."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        refresh_token = request.data.get("refresh")
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except TokenError:
+                return Response(
+                    {"error": "Invalid or expired refresh token."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        request.session.flush()
+        return Response({"message": "You have logged out successfully"}, status=status.HTTP_200_OK)
+
+
+
+
+
 class BlogViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
     def get_queryset(self):
@@ -360,18 +403,13 @@ class BlogViewSet(viewsets.ViewSet):
 
 class LegalItemsViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
-
-    def get_queryset(self):
-        return LegalItem.objects.all()
-
-    def get_serializer(self, *args, **kwargs):
-        return LegalItemsSerializer(*args, **kwargs)
-
     @action(detail=False, methods=['GET'], url_path='legal-items')
     def legal_items(self, request):
-        legal_items = self.get_queryset().first()
-        serializer = self.get_serializer(legal_items)
+        legal_items = LegalItem.objects.first()
+        serializer = LegalItemsSerializer(legal_items)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 
 
 
