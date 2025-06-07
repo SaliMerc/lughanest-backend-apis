@@ -94,87 +94,20 @@ class UserViewSet(viewsets.ViewSet):
         user = serializer.save()
 
         try:
-            token = default_token_generator.make_token(user)
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            verify_token = jwt.encode({
+                    "user_id": user.id,
+                    "exp": datetime.datetime.now() + timedelta(hours=24),
+                    "type": "verify_account"
+                },
+                settings.SECRET_KEY,
+                algorithm="HS256"
+            )
 
-            activation_link = f"{request.scheme}://{request.get_host()}/activate/{uid}/{token}/"
+            activation_link=f"{settings.FRONTEND_HOST}/account-verification?t={verify_token}"
 
             send_mail(
                 subject='LughaNest Account Verification',
-                message=f"Hello {user.first_name},\n\nHere is your account activation link:\n\n{activation_link}\n\nLughaNest Team",
-                from_email=settings.EMAIL_HOST_USER,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
-            return Response(
-                {"message": "Activation link has been sent to your email address"},
-                status=status.HTTP_200_OK
-            )
-
-        except Exception as e:  # Catch potential email sending errors
-            print(e)
-            return Response(
-                {"message": "Account created but failed to send activation email"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
-    """For OTP Verification"""
-    @action(detail=False, methods=['POST'], url_path='account-verification')
-    def verify_account(self, request):
-        uidb64 = request.data.get('uidb64')
-        token = request.data.get('token')
-
-        if not uidb64 or not token:
-            return Response({"message": "Both token and uuidb are required"}, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            try:
-                uid = force_str(urlsafe_base64_decode(uidb64))
-                user = MyUser.objects.get(id=uid)
-            except (TypeError, ValueError, OverflowError, MyUser.DoesNotExist):
-                return Response({"message": "Invalid uidb64 or token"}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not user or not default_token_generator.check_token(user, token):
-            return Response({"message": "Invalid token or user does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-
-        if user.is_active:
-            return Response({"message":"Your account has already been verified"})
-
-        try:
-            user.is_active=True
-            user.verified_at=datetime.datetime.now()
-            user.save()
-
-            send_mail(
-                subject='Welcome to LughaNest',
-                message=f"Hello {user.first_name}, \n \n \nYour account has successfully been verified \nYou can now log in and interact with our courses and enjoy personalised dashboard with your learning metrics. \n \n \n \n LughaNest Team",
-                from_email=settings.EMAIL_HOST_USER,
-                recipient_list=[user.email],
-                fail_silently=True
-            )
-
-            return Response({"message":"Your account was verified successfully"},status=status.HTTP_200_OK)
-        except MyUser.DoesNotExist:
-            return Response({"message":"Email not found"},status=status.HTTP_400_BAD_REQUEST)
-
-    """For Resending OTP"""
-    @action(detail=False, methods=['POST'],url_path='resend-verification')
-    def resend_verification(self, request):
-        email=request.data.get("email")
-
-        try:
-            user=MyUser.objects.get(email=email)
-            if user.is_active:
-                return Response({"message": "Your account has already been verified"})
-
-            token = default_token_generator.make_token(user)
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-
-            activation_link = f"{request.scheme}://{request.get_host()}/activate/{uid}/{token}/"
-
-            send_mail(
-                subject='LughaNest Account Verification',
-                message=f"Hello {user.first_name},\n\nHere is your account activation link:\n\n{activation_link}\n\nLughaNest Team",
+                message=f"Hello {user.first_name},\n\nHere is your account activation link:\n\n{activation_link}, follow thee link to verify and activate your account.\n\nLughaNest Team",
                 from_email=settings.EMAIL_HOST_USER,
                 recipient_list=[user.email],
                 fail_silently=False,
@@ -191,7 +124,90 @@ class UserViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    """Password reset function (When not logged in"""
+
+    """For Email Verification and account activation"""
+    @action(detail=False, methods=['POST'], url_path='account-verification')
+    def verify_account(self, request):
+        reset_jwt = request.data.get('jwt')
+
+        try:
+            payload = jwt.decode(
+                reset_jwt,
+                settings.SECRET_KEY,
+                algorithms=["HS256"],
+                options={"require": ["exp", "user_id", "type"]}
+            )
+            if payload.get("type") != "verify_account":
+                raise jwt.InvalidTokenError
+            if datetime.datetime.now() > datetime.datetime.fromtimestamp(payload['exp']):
+                return Response({"message": "The token has expired. Request a new one."})
+
+            user = MyUser.objects.get(id=payload["user_id"])
+
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, MyUser.DoesNotExist) as e:
+            return Response(
+                {"error": "Invalid or expired token", "detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            if user.is_active:
+                return Response({"message":"Your account has already been verified."})
+            user.is_active=True
+            user.verified_at=datetime.datetime.now()
+            user.save()
+
+            send_mail(
+                subject='Welcome to LughaNest',
+                message=f"Hello {user.first_name}, \n \n \nYour account has successfully been verified \nYou can now log in and interact with our courses and enjoy personalised dashboard with your learning metrics. \n \n \n \n LughaNest Team",
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[user.email],
+                fail_silently=True
+            )
+
+            return Response({"message":"Your account was verified successfully"},status=status.HTTP_200_OK)
+        except MyUser.DoesNotExist:
+            return Response({"message":"Email not found"},status=status.HTTP_400_BAD_REQUEST)
+
+    """For Resending verification email"""
+    @action(detail=False, methods=['POST'],url_path='resend-verification')
+    def resend_verification(self, request):
+        email=request.data.get("email")
+
+        user=MyUser.objects.get(email=email)
+
+        try:
+            verify_token = jwt.encode({
+                "user_id": user.id,
+                "exp": datetime.datetime.now() + timedelta(hours=24),
+                "type": "verify_account"
+            },
+                settings.SECRET_KEY,
+                algorithm="HS256"
+            )
+
+            activation_link = f"{settings.FRONTEND_HOST}/account-verification?t={verify_token}"
+
+            send_mail(
+                subject='LughaNest Account Verification',
+                message=f"Hello {user.first_name},\n\nHere is your account activation link:\n\n{activation_link}, follow thee link to verify and activate your account.\n\nLughaNest Team",
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            return Response(
+                {"message": "Activation link has been sent to your email address"},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            print(e)
+            return Response(
+                {"message": "Account created but failed to send activation email"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    """Password reset function (When not logged in)"""
     @action(detail=False, methods=['POST'], url_path='password-reset-not-logged-in')
     def password_reset_not_logged_in(self, request):
         email=request.data.get("email")
