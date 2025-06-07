@@ -1,6 +1,7 @@
 import random
 import datetime
 from urllib import request
+from django.shortcuts import redirect
 
 from django.contrib.auth import authenticate, update_session_auth_hash
 from django.contrib.auth.handlers.modwsgi import check_password
@@ -16,9 +17,64 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken,TokenError
 
+import jwt
+
+
 from LughaNestBackend import settings
 from lugha_app.models import *
 from .serializers import *
+
+from rest_framework.views import APIView
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from django.conf import settings
+
+class GoogleAuthView(APIView):
+    def post(self, request):
+        token = request.data.get('token')
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                token, google_requests.Request(), settings.GOOGLE_CLIENT_ID
+            )
+            email = idinfo['email']
+            first_name = idinfo.get('given_name', '')
+            last_name = idinfo.get('family_name', '')
+            profile_picture=idinfo.get('picture','')
+            user, created = MyUser.objects.get_or_create(email=email,
+                                                   defaults={'username': email, 'first_name': first_name,
+                                                             'last_name': last_name, 'display_name':email,'profile_picture':profile_picture}
+                                                   )
+            if not created:
+                user.last_login = datetime.datetime.now()
+                user.save()
+            user.save()
+            refresh = RefreshToken.for_user(user)
+            response= Response({
+                'status':"success",
+                "user":UserSerializer(user).data
+            })
+            response.set_cookie(
+                settings.SIMPLE_JWT['AUTH_COOKIE'],
+                str(refresh.access_token),
+                max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            )
+
+            response.set_cookie(
+                settings.SIMPLE_JWT['REFRESH_COOKIE'],
+                str(refresh),
+                max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            )
+
+            return response
+        except Exception as e:
+            return Response({'error': f'Invalid token\n {e}'}, status=400)
+
 
 """All functions to do with signup, login, verification, password  reset, and viewing user details"""
 class UserViewSet(viewsets.ViewSet):
@@ -27,7 +83,7 @@ class UserViewSet(viewsets.ViewSet):
 
     """Users can signup and login easily but have to be logged in to update their details"""
     def get_permissions(self):
-        if self.action in ['create','login','verify_otp','resend_otp', 'password_reset_not_logged_in','password_reset_not_logged_in_confirmation']:
+        if self.action in ['create','login','verify_account','resend_verification', 'password_reset_not_logged_in','password_reset_not_logged_in_confirmation','validate_token','confirm_reset']:
             return [AllowAny()]
         return [IsAuthenticated()]
 
@@ -37,42 +93,56 @@ class UserViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        user.otp=str(random.randint(100000,999999))
-        user.otp_expiry=timezone.now() + datetime.timedelta(minutes=15)
-        user.save()
+        try:
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
 
-        """Sending an email with the otp"""
-        send_mail(
-            subject='LughaNest Account Verification',
-            message=f" Hello {user.first_name}, \n \n \n Your OTP is {user.otp} \n Enter the OTP to proceed with you account creation \n \n \n \n LughaNest Team",
-            from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[user.email]
-        )
+            activation_link = f"{request.scheme}://{request.get_host()}/activate/{uid}/{token}/"
 
-        return Response({"detail":"OTP sent, check your email to activate your account"},status=status.HTTP_201_CREATED)
+            send_mail(
+                subject='LughaNest Account Verification',
+                message=f"Hello {user.first_name},\n\nHere is your account activation link:\n\n{activation_link}\n\nLughaNest Team",
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            return Response(
+                {"message": "Activation link has been sent to your email address"},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:  # Catch potential email sending errors
+            print(e)
+            return Response(
+                {"message": "Account created but failed to send activation email"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
     """For OTP Verification"""
-    @action(detail=False, methods=['POST'], url_path='otp-verification')
-    def verify_otp(self, request):
-        email=request.data.get("email")
-        otp=request.data.get("otp")
+    @action(detail=False, methods=['POST'], url_path='account-verification')
+    def verify_account(self, request):
+        uidb64 = request.data.get('uidb64')
+        token = request.data.get('token')
+
+        if not uidb64 or not token:
+            return Response({"message": "Both token and uuidb are required"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            try:
+                uid = force_str(urlsafe_base64_decode(uidb64))
+                user = MyUser.objects.get(id=uid)
+            except (TypeError, ValueError, OverflowError, MyUser.DoesNotExist):
+                return Response({"message": "Invalid uidb64 or token"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user or not default_token_generator.check_token(user, token):
+            return Response({"message": "Invalid token or user does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if user.is_active:
+            return Response({"message":"Your account has already been verified"})
 
         try:
-            user = MyUser.objects.get(email=email)
-
-            if user.is_active:
-                return Response({"detail":"Your account has already been verified"},status=status.HTTP_200_OK)
-
-            if otp != user.otp:
-                return Response({"detail":"The OTP is invalid"},status=status.HTTP_400_BAD_REQUEST)
-
-            if user.otp_expiry and timezone.now() > user.otp_expiry:
-                return Response({"detail":"OTP expired, request a new one"},status=status.HTTP_400_BAD_REQUEST)
-
             user.is_active=True
-            user.verified_at=timezone.now()
-            user.otp=None
-            user.otp_expiry=None
+            user.verified_at=datetime.datetime.now()
             user.save()
 
             send_mail(
@@ -83,36 +153,43 @@ class UserViewSet(viewsets.ViewSet):
                 fail_silently=True
             )
 
-            return Response({"success":"Your account was verified successfully"},status=status.HTTP_200_OK)
+            return Response({"message":"Your account was verified successfully"},status=status.HTTP_200_OK)
         except MyUser.DoesNotExist:
-            return Response({"detail":"Email not found"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"Email not found"},status=status.HTTP_400_BAD_REQUEST)
 
     """For Resending OTP"""
-    @action(detail=False, methods=['POST'],url_path='resend-otp')
-    def resend_otp(self, request):
+    @action(detail=False, methods=['POST'],url_path='resend-verification')
+    def resend_verification(self, request):
         email=request.data.get("email")
 
         try:
-            user = MyUser.objects.get(email=email)
-
+            user=MyUser.objects.get(email=email)
             if user.is_active:
-                return Response({"detail":"Your account has already been verified"},status=status.HTTP_200_OK)
+                return Response({"message": "Your account has already been verified"})
 
-            user.otp = str(random.randint(100000, 999999))
-            user.otp_expiry = timezone.now() + datetime.timedelta(minutes=15)
-            user.save()
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+
+            activation_link = f"{request.scheme}://{request.get_host()}/activate/{uid}/{token}/"
 
             send_mail(
-                subject='New OTP',
-                message=f" Hello {user.first_name}, \n \n \n Your new OTP is {user.otp} \n Enter the OTP to complete you account creation \n \n \n \n LughaNest Team",
+                subject='LughaNest Account Verification',
+                message=f"Hello {user.first_name},\n\nHere is your account activation link:\n\n{activation_link}\n\nLughaNest Team",
                 from_email=settings.EMAIL_HOST_USER,
-                recipient_list=[user.email]
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            return Response(
+                {"message": "Activation link has been sent to your email address"},
+                status=status.HTTP_200_OK
             )
 
-            return Response({"detail": "OTP sent, check your email to activate your account"}, status=status.HTTP_201_CREATED)
-
-        except MyUser.DoesNotExist:
-            return Response({"detail":"Email not found"},status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(e)
+            return Response(
+                {"message": "Account created but failed to send activation email"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     """Password reset function (When not logged in"""
     @action(detail=False, methods=['POST'], url_path='password-reset-not-logged-in')
@@ -124,50 +201,89 @@ class UserViewSet(viewsets.ViewSet):
 
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.id))
-
-            user.otp = str(random.randint(100000, 999999))
-            user.otp_expiry = timezone.now() + datetime.timedelta(minutes=15)
-            user.save()
-
-            reset_link = f"{request.scheme}://{request.get_host()}/reset/{uid}/{token}/"
+            reset_link = f"{request.scheme}:/{settings.FRONTEND_HOST}/change-password?u={uid}&t={token}"
 
             send_mail(
                 subject='Password Reset Link',
-                message=f" Hello {user.first_name}, \n \n \n Here is your password reset link and an OTP that you will use to recover your account \n Your OTP is {user.otp}\n\n Click the link below  to continue with your password reset\n {reset_link} \n \n \n \n LughaNest Team",
+                message=f" Hello {user.first_name}, \n \n \n Here is your password reset link and an OTP that you will use to recover your account \n\n\n Click the link below  to continue with your password reset\n {reset_link} \n \n \n \n LughaNest Team",
                 from_email=settings.EMAIL_HOST_USER,
                 recipient_list=[user.email]
             )
-            return Response({"message":"A password reset email has been sent to your account, follow the link to continue with your password recovery"},status=status.HTTP_200_OK)
+            return Response({"message":"A password reset link has been sent to your email account, follow the link to continue with your password reset"},status=status.HTTP_200_OK)
         except MyUser.DoesNotExist:
             return Response({"message":"A user with this email does not exist"},status=status.HTTP_400_BAD_REQUEST)
 
     """Password reset function (When not logged in"""
-
-    @action(detail=False, methods=['POST'], url_path='password-reset-not-logged-in-confirmation')
-    def password_reset_not_logged_in_confirmation(self, request):
-        uidb64=request.data.get('uidb64')
-        token=request.data.get('token')
-        otp = request.data.get('otp')
-
-        if not uidb64 or not token:
-            return Response({"message":"Both token and uuidb are required"},status=status.HTTP_400_BAD_REQUEST)
-        else:
-            try:
-                uid = force_str(urlsafe_base64_decode(uidb64))
-                user = MyUser.objects.get(id=uid)
-            except (TypeError, ValueError, OverflowError, MyUser.DoesNotExist):
-                return Response({"message":"Invalid uidb64 or token"},status=status.HTTP_400_BAD_REQUEST)
-
-        if not user or not default_token_generator.check_token(user, token):
-            return Response({"message":"Invalid token or user does not exist"},status=status.HTTP_400_BAD_REQUEST)
-
-        if user.otp !=otp or (user.otp_expiry and timezone.now() > user.otp_expiry):
-            return Response({"message":"Invalid or expired OTP"},status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=False, methods=['post'], url_path='validate-reset-token')
+    def validate_token(self, request):
+        """Validating the token in the email link"""
+        uidb64 = request.data.get('uidb64')
+        token = request.data.get('token')
 
         try:
-            new_password=request.data.get('new-password')
-            confirm_password = request.data.get('confirm-password')
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = MyUser.objects.get(id=uid)
+        except (TypeError, ValueError, OverflowError, MyUser.DoesNotExist):
+            return Response(
+                {"valid": False, "error": "Invalid user"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        if not default_token_generator.check_token(user, token):
+            return Response(
+                {"valid": False, "error": "Invalid token"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        reset_jwt = jwt.encode(
+            {
+                "user": user.id,
+                "exp": datetime.datetime.now() + timedelta(minutes=5),
+                "type": "password_reset"
+            },
+            settings.SECRET_KEY,
+            algorithm="HS256"
+        )
+
+        return Response({
+            "valid": True,
+            "jwt": reset_jwt,
+            "expires_in": "5 minutes"
+        })
+
+    @action(detail=False, methods=['post'], url_path='confirm-password-reset')
+    def confirm_reset(self, request):
+        """The jwt token will then be used to identify the user while they are resetting their password"""
+        reset_jwt = request.data.get('jwt')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+
+        try:
+            payload = jwt.decode(
+                reset_jwt,
+                settings.SECRET_KEY,
+                algorithms=["HS256"],
+                options={"require": ["exp", "user", "type"]}
+            )
+
+            if payload.get("type") != "password_reset":
+                raise jwt.InvalidTokenError
+            if datetime.datetime.now() > datetime.datetime.fromtimestamp(payload['exp']):
+                return Response({"message":"The token has expired. Request a new one."})
+
+            user = MyUser.objects.get(id=payload["user"])
+
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, MyUser.DoesNotExist) as e:
+            return Response(
+                {"error": "Invalid or expired token", "detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            if len(new_password) < 8:
+                return Response(
+                    {"message": "Password must be at least 8 characters"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             if not new_password or not confirm_password:
                 return Response({"message":"Both passwords should be provided"},status=status.HTTP_400_BAD_REQUEST)
 
@@ -178,21 +294,24 @@ class UserViewSet(viewsets.ViewSet):
                 return Response({"message":"The new password cannot be the same as the old password."}, status=status.HTTP_400_BAD_REQUEST)
 
             user.set_password(new_password)
-            user.otp=None
-            user.otp_expiry=None
             user.save()
-
-            send_mail(
-                subject='Password Reset',
-                message=f" Hello {user.first_name}, \n \n \n Your Password was reset successfully. If you did not perform this action, kindly let us know. \n \n \n \n LughaNest Team",
-                from_email=settings.EMAIL_HOST_USER,
-                recipient_list=[user.email]
-            )
-
-            return Response({"message":"Your password has been changed successfully."}, status=status.HTTP_200_OK)
         except Exception as e:
-            print(e)
-            return Response({"message":"Invalid data"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"An error was encountered while performing this action"})
+
+        send_mail(
+            subject='Password Reset',
+            message=f" Hello {user.first_name}, \n \n \n Your Password was reset successfully. If you did not perform this action, kindly let us know. \n \n \n \n LughaNest Team",
+            from_email=settings.EMAIL_HOST_USER,
+            recipient_list=[user.email]
+        )
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response({
+            "success": True,
+            "message": "Password updated successfully"
+        })
 
     """For login"""
     @action(detail=False, methods=['POST'],url_path='login')
@@ -204,13 +323,31 @@ class UserViewSet(viewsets.ViewSet):
 
         if user:
             refresh = RefreshToken.for_user(user)
-            return Response({
+            response= Response({
                 "message": "Logged in successfully",
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
                 "user": UserSerializer(user).data
             })
-        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+            response.set_cookie(
+                settings.SIMPLE_JWT['AUTH_COOKIE'],
+                str(refresh.access_token),
+                max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            )
+
+            response.set_cookie(
+                settings.SIMPLE_JWT['REFRESH_COOKIE'],
+                str(refresh),
+                max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            )
+
+            return response
+        return Response({"message": "Wrong email or password"}, status=status.HTTP_401_UNAUTHORIZED)
 
     """For password change when the users are logged in"""
     @action(detail=False, methods=['POST'],url_path='change-password')
