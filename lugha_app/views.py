@@ -42,12 +42,20 @@ class GoogleAuthView(APIView):
             profile_picture=idinfo.get('picture','')
             user, created = MyUser.objects.get_or_create(email=email,
                                                    defaults={'username': email, 'first_name': first_name,
-                                                             'last_name': last_name, 'display_name':email,'profile_picture':profile_picture}
+                                                             'last_name': last_name, 'display_name':email,'profile_picture':profile_picture,'accepted_terms_and_conditions':True}
                                                    )
             if not created:
                 user.last_login = datetime.datetime.now()
                 user.save()
             user.save()
+            if created:
+                send_mail(
+                    subject='Welcome to LughaNest',
+                    message=f"Hello {user.first_name}, \n \n \nYour account has been created successfully \nYou can now interact with our courses and enjoy personalised dashboard with your learning metrics. \n \n \n \n LughaNest Team",
+                    from_email=settings.EMAIL_HOST_USER,
+                    recipient_list=[user.email],
+                    fail_silently=True
+                )
             refresh = RefreshToken.for_user(user)
             response= Response({
                 'status':"success",
@@ -174,9 +182,15 @@ class UserViewSet(viewsets.ViewSet):
     def resend_verification(self, request):
         email=request.data.get("email")
 
-        user=MyUser.objects.get(email=email)
-
         try:
+            user=MyUser.objects.get(email=email)
+
+
+            if user.is_active:
+                return Response({"message":"You account has already been verified. Login to continue"})
+
+
+
             verify_token = jwt.encode({
                 "user_id": user.id,
                 "exp": datetime.datetime.now() + timedelta(hours=24),
@@ -200,12 +214,12 @@ class UserViewSet(viewsets.ViewSet):
                 status=status.HTTP_200_OK
             )
 
-        except Exception as e:
-            print(e)
+        except MyUser.DoesNotExist:
             return Response(
-                {"message": "Account created but failed to send activation email"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"message": "A user with this email address does not exist."},
+                status=status.HTTP_200_OK
             )
+
 
     """Password reset function (When not logged in)"""
     @action(detail=False, methods=['POST'], url_path='password-reset-not-logged-in')
@@ -335,6 +349,13 @@ class UserViewSet(viewsets.ViewSet):
         username = request.data.get('username')
         password = request.data.get('password')
 
+        try:
+            this_user=MyUser.objects.get(username=username)
+            if not this_user.check_password(password):
+                return Response({"message": "The password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+        except MyUser.DoesNotExist:
+            return Response({"message":"A user with this email does not exist."})
+
         user = authenticate(username=username, password=password)
 
         if user:
@@ -363,7 +384,7 @@ class UserViewSet(viewsets.ViewSet):
             )
 
             return response
-        return Response({"message": "Wrong email or password"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"message": "Wrong credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
     """For password change when the users are logged in"""
     @action(detail=False, methods=['POST'],url_path='change-password')

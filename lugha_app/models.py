@@ -16,7 +16,7 @@ class MyUser(AbstractUser):
     email = models.EmailField(unique=True)
     country=models.CharField(max_length=30,null=True, blank=True)
     city = models.CharField(max_length=30, null=True, blank=True)
-    device_info = models.CharField(max_length=30,null=True, blank=True)
+    # device_info = models.CharField(max_length=30,null=True, blank=True)
     display_name=CharField(unique=True, max_length=255, blank=True, null=True)
     profile_picture = models.ImageField(upload_to='profile_pictures', blank=True, null=True)
     accepted_terms_and_conditions=models.BooleanField(default=False, blank=False, null=False)
@@ -79,3 +79,70 @@ class Course(models.Model):
     class Meta:
         ordering = ['course_name','difficulty']
 
+
+"""To allow students to enroll for the courses"""
+class EnrolledCourses(models.Model):
+    course_name=models.ForeignKey(Course,on_delete=models.CASCADE, related_name='courses')
+    course_level =models.CharField(choices=LEVEL_CHOICES, max_length=255, default='beginner')
+    student=models.ForeignKey(MyUser,on_delete=models.CASCADE, related_name='students')
+    enrolment_date=models.DateTimeField(auto_now_add=True)
+    is_enrolled=models.BooleanField(default=False)
+    is_completed=models.BooleanField(default=False)
+    completion_date=models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ('student', 'course_name', 'course_level')
+
+    def __str__(self):
+        return self.course_name.course_name
+
+"""Contains all the modules for the respective courses"""
+class CourseModule(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='course_modules')
+    module_title = models.CharField(max_length=255)
+    module_description = models.TextField()
+    module_order = models.IntegerField(default=1)
+
+    def __str__(self):
+        return f"{self.module_title} - {self.course}"
+
+"""Contains all the lessons for the respective modules"""
+class CourseLesson(models.Model):
+    LESSON_CHOICES = [
+        ('video', 'Video'),
+        ('audio', 'Audio'),
+        ('read', 'Read'),
+        ('quiz', 'Quiz'),
+    ]
+    module_name = models.ForeignKey(CourseModule, on_delete=models.CASCADE, related_name='module_lessons')
+    lesson_description = models.TextField()
+    lesson_number = models.IntegerField()
+    lesson_type = models.CharField(max_length=255, choices=LESSON_CHOICES, default='read')
+    lesson_file = models.FileField(upload_to='course-lessons', blank=True, null=True)
+    lesson_transcript = models.TextField(blank=True, null=True)
+    lesson_content = models.TextField(blank=True, null=True)
+    lesson_duration = models.FloatField(blank=True, null=True, help_text="Duration of the lesson in seconds")
+    lesson_completed=models.BooleanField(default=False)
+
+class LessonCompletion(models.Model):
+    lesson_student = models.ForeignKey(MyUser, on_delete=models.CASCADE, related_name='lesson_student')
+    lesson=models.ForeignKey(CourseLesson, on_delete=models.CASCADE, related_name='lessons')
+    completed_at=models.DateTimeField(auto_now_add=True)
+
+    unique_together = ('lesson_student', 'lesson')
+
+    def __str__(self):
+        return f"{self.lesson_student.username} completed {self.lesson.lesson_description}"
+"""The course models end here"""
+
+"""Chats models begin here"""
+class Message(models.Model):
+    sender=models.ForeignKey(MyUser,on_delete=models.CASCADE, related_name='sender')
+    receiver=models.ForeignKey(MyUser,on_delete=models.CASCADE, related_name='receiver')
+    message_content=models.TextField()
+    message_sent_at=models.DateTimeField(auto_now_add=True)
+    is_read=models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.message_content
+"""Chats models ends here"""

@@ -65,7 +65,6 @@ MIDDLEWARE = [
 """Cors set up"""
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://127.0.0.1:8000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -75,6 +74,8 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
 ]
 CORS_EXPOSE_HEADERS = ['Set-Cookie']
+
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 """Cors setup ends"""
 
 ROOT_URLCONF = 'LughaNestBackend.urls'
