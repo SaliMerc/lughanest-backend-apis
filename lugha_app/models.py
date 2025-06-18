@@ -4,6 +4,8 @@ from django.contrib.auth.models import AbstractUser
 from django.db.models import CharField
 from django.utils import timezone
 
+# import lugha_app.signals
+
 """Choices that will be reused"""
 LEVEL_CHOICES = [
     ('beginner', 'Beginner'),
@@ -50,6 +52,15 @@ class LegalItem(models.Model):
     def __str__(self):
         return "Legal items were added successfully"
 
+""""Legal the subscription plans"""
+class SubscriptionItem(models.Model):
+    currency = models.CharField(max_length=100)
+    monthly_plan= models.DecimalField(max_digits=10,decimal_places=2, default=0.00)
+    yearly_plan = models.DecimalField(max_digits=10,decimal_places=2, default=0.00)
+
+    def __str__(self):
+        return "subscription items added successfully"
+
 """For the blogs"""
 class Blog(models.Model):
     blog_image=models.FileField(upload_to='blog-images', blank=True, null=True)
@@ -85,13 +96,46 @@ class EnrolledCourses(models.Model):
     course_name=models.ForeignKey(Course,on_delete=models.CASCADE, related_name='courses')
     course_level =models.CharField(choices=LEVEL_CHOICES, max_length=255, default='beginner')
     student=models.ForeignKey(MyUser,on_delete=models.CASCADE, related_name='students')
-    enrolment_date=models.DateTimeField(auto_now_add=True)
     is_enrolled=models.BooleanField(default=False)
     is_completed=models.BooleanField(default=False)
+    enrolment_date = models.DateTimeField(auto_now_add=True)
     completion_date=models.DateTimeField(blank=True, null=True)
+    progress = models.FloatField(default=0.0)
 
     class Meta:
         unique_together = ('student', 'course_name', 'course_level')
+
+    def update_completion_status(self):
+        total_lessons = CourseLesson.objects.filter(
+            module_name__course=self.course_name
+        ).count()
+        
+        if total_lessons == 0:
+            return False
+            
+        completed_lessons = LessonCompletion.objects.filter(
+            lesson_student=self.student,
+            lesson__module_name__course=self.course_name
+        ).count()
+        
+        # Update status if changed
+        if completed_lessons >= total_lessons:
+            if not self.is_completed:
+                self.is_completed = True
+                self.save()
+                return True
+        else:
+            if self.is_completed:
+                self.is_completed = False
+                self.save()
+                return True
+                
+        return False
+
+    def save(self, *args, **kwargs):
+        if self.is_completed and self.completion_date is None:
+            self.completion_date = timezone.now()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.course_name.course_name
@@ -121,15 +165,19 @@ class CourseLesson(models.Model):
     lesson_file = models.FileField(upload_to='course-lessons', blank=True, null=True)
     lesson_transcript = models.TextField(blank=True, null=True)
     lesson_content = models.TextField(blank=True, null=True)
-    lesson_duration = models.FloatField(blank=True, null=True, help_text="Duration of the lesson in seconds")
+    lesson_duration = models.FloatField(blank=True, null=True, help_text="Duration of the lesson in minutes")
     lesson_completed=models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.module_name.module_title} - {self.lesson_description}"
 
 class LessonCompletion(models.Model):
     lesson_student = models.ForeignKey(MyUser, on_delete=models.CASCADE, related_name='lesson_student')
     lesson=models.ForeignKey(CourseLesson, on_delete=models.CASCADE, related_name='lessons')
     completed_at=models.DateTimeField(auto_now_add=True)
 
-    unique_together = ('lesson_student', 'lesson')
+    class Meta:
+        unique_together = ('lesson_student', 'lesson')
 
     def __str__(self):
         return f"{self.lesson_student.username} completed {self.lesson.lesson_description}"

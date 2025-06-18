@@ -7,6 +7,8 @@ router = DefaultRouter()
 router.register('users', UserViewSet, basename='users')
 router.register('blogs', BlogViewSet, basename='blogs')
 router.register('legal', LegalItemsViewSet, basename='legal')
+router.register('courses', CourseItemsViewSet, basename='courses')
+router.register('subscription', SubscriptionItemsViewSet, basename='subscription')
 
 urlpatterns = [
     path('', include(router.urls)),

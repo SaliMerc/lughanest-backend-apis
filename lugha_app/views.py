@@ -1,7 +1,8 @@
 import random
 import datetime
+from logging import raiseExceptions
 from urllib import request
-from django.shortcuts import redirect
+from django.shortcuts import redirect, get_object_or_404
 
 from django.contrib.auth import authenticate, update_session_auth_hash
 from django.contrib.auth.handlers.modwsgi import check_password
@@ -28,6 +29,8 @@ from rest_framework.views import APIView
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from django.conf import settings
+
+from collections import defaultdict
 
 class GoogleAuthView(APIView):
     def post(self, request):
@@ -58,26 +61,28 @@ class GoogleAuthView(APIView):
                 )
             refresh = RefreshToken.for_user(user)
             response= Response({
-                'status':"success",
-                "user":UserSerializer(user).data
+                'status':"Authentication successful.",
+                "user":UserSerializer(user).data,
+                "access_token": str(refresh.access_token),
+                "refresh": str(refresh)
             })
-            response.set_cookie(
-                settings.SIMPLE_JWT['AUTH_COOKIE'],
-                str(refresh.access_token),
-                max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            )
-
-            response.set_cookie(
-                settings.SIMPLE_JWT['REFRESH_COOKIE'],
-                str(refresh),
-                max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            )
+            # response.set_cookie(
+            #     settings.SIMPLE_JWT['AUTH_COOKIE'],
+            #     str(refresh.access_token),
+            #     max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
+            #     secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+            #     httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+            #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            # )
+            #
+            # response.set_cookie(
+            #     settings.SIMPLE_JWT['REFRESH_COOKIE'],
+            #     str(refresh),
+            #     max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+            #     secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+            #     httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+            #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            # )
 
             return response
         except Exception as e:
@@ -235,11 +240,11 @@ class UserViewSet(viewsets.ViewSet):
 
             send_mail(
                 subject='Password Reset Link',
-                message=f" Hello {user.first_name}, \n \n \n Here is your password reset link and an OTP that you will use to recover your account \n\n\n Click the link below  to continue with your password reset\n {reset_link} \n \n \n \n LughaNest Team",
+                message=f" Hello {user.first_name}, \n \n \n Here is your one time password reset link that you will use to recover your account \n\n\n Click the link below  to continue with your password reset\n {reset_link} \n \n \n \n LughaNest Team",
                 from_email=settings.EMAIL_HOST_USER,
                 recipient_list=[user.email]
             )
-            return Response({"message":"A password reset link has been sent to your email account, follow the link to continue with your password reset"},status=status.HTTP_200_OK)
+            return Response({"message":"A password reset link has been sent to your email account, follow the link to continue."},status=status.HTTP_200_OK)
         except MyUser.DoesNotExist:
             return Response({"message":"A user with this email does not exist"},status=status.HTTP_400_BAD_REQUEST)
 
@@ -357,31 +362,33 @@ class UserViewSet(viewsets.ViewSet):
             return Response({"message":"A user with this email does not exist."})
 
         user = authenticate(username=username, password=password)
-
+        serializer=UserSerializer(user,context={'request': request})
         if user:
             refresh = RefreshToken.for_user(user)
             response= Response({
                 "message": "Logged in successfully",
-                "user": UserSerializer(user).data
+                "user": serializer.data,
+                "access_token":str(refresh.access_token),
+                "refresh": str(refresh)
             })
 
-            response.set_cookie(
-                settings.SIMPLE_JWT['AUTH_COOKIE'],
-                str(refresh.access_token),
-                max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            )
-
-            response.set_cookie(
-                settings.SIMPLE_JWT['REFRESH_COOKIE'],
-                str(refresh),
-                max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            )
+            # response.set_cookie(
+            #     settings.SIMPLE_JWT['AUTH_COOKIE'],
+            #     str(refresh.access_token),
+            #     max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
+            #     secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+            #     httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+            #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            # )
+            #
+            # response.set_cookie(
+            #     settings.SIMPLE_JWT['REFRESH_COOKIE'],
+            #     str(refresh),
+            #     max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+            #     secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+            #     httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+            #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            # )
 
             return response
         return Response({"message": "Wrong credentials"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -441,7 +448,7 @@ class UserViewSet(viewsets.ViewSet):
         user = request.user
         """Retrieve the old email in case the user changes it during profile update"""
         old_email=user.email
-        serializer = UserProfileUpdateSerializer(user, data=request.data, partial=True)
+        serializer = UserProfileUpdateSerializer(user, data=request.data, partial=True, context={'request': request})
 
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -548,40 +555,194 @@ class UserViewSet(viewsets.ViewSet):
         request.session.flush()
         return Response({"message": "You have logged out successfully"}, status=status.HTTP_200_OK)
 
-
-
-
-
+"""For retrieving all the blogs"""
 class BlogViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
-    def get_queryset(self):
-        return Blog.objects.all()
-
-    def get_serializer(self, *args, **kwargs):
-        return BlogSerializer(*args, **kwargs)
-
     @action(detail=False, methods=['GET'], url_path='all-blog-items')
     def all_blog_items(self, request):
-        blogs=self.get_queryset()
-        serializer = self.get_serializer(blogs, many=True)
+        blogs=Blog.objects.order_by('-created_at')
+        serializer = BlogSerializer(blogs, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['GET'], url_path='blog-detail')
-    def blog_detail(self, request, pk=None):
-        try:
-            blog = self.get_queryset().get(pk=pk)
-            serializer = self.get_serializer(blog)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except Blog.DoesNotExist:
-            return Response({"message":"Blog does not exist."})
-
+"""For retrieving the privacy policy and the terms and conditions"""
 class LegalItemsViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
     @action(detail=False, methods=['GET'], url_path='legal-items')
-    def legal_items(self, request):
+    def legal_items(self,request):
         legal_items = LegalItem.objects.first()
         serializer = LegalItemsSerializer(legal_items)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+"""For retrieving all the available courses"""
+class CourseItemsViewSet(viewsets.ViewSet):
+    def get_permissions(self):
+        if self.action in ['course_items']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+    @action(detail=False, methods=['GET'], url_path='available-courses')
+    def course_items(self,request):
+        available_courses = Course.objects.all()
+        serializer = CourseItemsSerializer(available_courses, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['GET'], url_path='structured-available-courses')
+    def course_items_structured(self, request):
+        courses = Course.objects.all()
+
+        enrolled_course_ids = set()
+        if request.user.is_authenticated:
+            enrolled_course_ids = set(
+                EnrolledCourses.objects.filter(
+                    student=request.user,
+                    is_enrolled=True
+                ).values_list('course_name_id', flat=True)
+            )
+
+        grouped_courses = defaultdict(list)
+
+        for course in courses:
+            serialized = CourseItemsSerializer(course).data
+            serialized['is_enrolled'] = course.id in enrolled_course_ids
+            grouped_courses[course.course_name].append(serialized)
+
+        return Response(grouped_courses, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['POST'], url_path='enroll-courses')
+    def enroll_course(self, request):
+        student = request.user
+        serializer = EnrollCourseItemsSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+
+        course_name = serializer.validated_data['course_name']
+        course_level = serializer.validated_data['course_level']
+
+        already_enrolled = models.EnrolledCourses.objects.filter(
+            student=student,
+            course_name=course_name,
+            course_level=course_level
+        ).exists()
+
+        if already_enrolled:
+            return Response(
+                {"message": "You are already enrolled in this course."},
+                status=status.HTTP_200_OK
+            )
+
+        serializer.save()
+        return Response({"message":"You have successfully enrolled in this course"}, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['GET'], url_path='ongoing-and-completed-courses')
+    def ongoing_and_completed_courses(self, request):
+        enrolled_courses = EnrolledCourses.objects.filter(
+            student=request.user,
+            is_enrolled=True
+        ).select_related('course_name')
+
+
+        ongoing_courses = []
+        completed_courses = []
+
+        for enrolled in enrolled_courses:
+            serialized_course = EnrollCourseItemsSerializer(enrolled).data
+
+            if enrolled.is_completed:
+                completed_courses.append(serialized_course)
+            else:
+                ongoing_courses.append(serialized_course)
+
+
+        return Response({
+            "ongoing_courses": ongoing_courses,
+            "completed_courses": completed_courses
+        }, status=status.HTTP_200_OK)
+
+    """Contains all the modules for the course and the respective lessons under them."""
+    @action(detail=False, methods=['GET'], url_path='course-modules/(?P<course_id>[^/.]+)')
+    def course_modules(self, request, course_id=None):
+        enrolled_course = get_object_or_404(
+            EnrolledCourses,
+            course_name__id=course_id,
+            student=request.user
+        )
+
+        course_modules = CourseModule.objects.filter(
+            course=enrolled_course.course_name
+        ).order_by('module_order')
+
+        serializer = CourseModulesSerializer(course_modules, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    """Contains all the modules for the course and the respective lessons under them."""
+
+    @action(detail=False, methods=['GET', 'POST'], url_path='course-lesson-completion/(?P<lesson_id>[^/.]+)')
+    def lesson_completion(self, request, lesson_id=None):
+        lesson = get_object_or_404(CourseLesson, id=lesson_id)
+
+        # Handle GET: check if lesson is already completed
+        if request.method == 'GET':
+            completed = LessonCompletion.objects.filter(
+                lesson_student=request.user,
+                lesson=lesson
+            ).exists()
+            return Response({
+                "status": "success",
+                "completed": completed
+            }, status=status.HTTP_200_OK)
+
+        serializer = CourseLessonCompletionSerializer(
+            data=request.data,
+            context={'request': request, 'lesson': lesson}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            completion, created = LessonCompletion.objects.get_or_create(
+                lesson_student=request.user,
+                lesson=lesson,
+                defaults=serializer.validated_data
+            )
+
+            if not created:
+                completion.delete()
+                return Response(
+                    {
+                        "status": "success",
+                        "completed": False,
+                        "message": "Lesson marked incomplete"
+                    },
+                    status=status.HTTP_200_OK
+                )
+
+            return Response(
+                {
+                    "status": "success",
+                    "completed": True,
+                    "message": "Lesson completed",
+                    "data": CourseLessonCompletionSerializer(completion).data
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as e:
+            print(e)
+            return Response(
+                {
+                    "status": "error",
+                    "message": "An unexpected error occurred"
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+"""For retrieving the Payment Subscription plans"""
+class SubscriptionItemsViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+    @action(detail=False, methods=['GET'], url_path='subscription-items')
+    def legal_items(self, request):
+        subscription_items = SubscriptionItem.objects.first()
+        serializer = SubscriptionItemsSerializer(subscription_items)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 
 
