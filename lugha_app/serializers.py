@@ -4,11 +4,17 @@ import lugha_app.models as models
 from .models import MyUser
 
 class UserSerializer(serializers.ModelSerializer):
-    profile_picture = serializers.ImageField(use_url=True)
+    profile_picture_url = serializers.SerializerMethodField()
 
     class Meta:
         model = MyUser
-        fields = ['id', 'username', 'email', 'password','first_name','last_name','display_name','city','country','is_active','profile_picture','accepted_terms_and_conditions','languages_spoken']
+        fields = ['id', 'username', 'email', 'password','first_name','last_name','display_name','city','country','is_active','profile_picture_url','accepted_terms_and_conditions','languages_spoken']
+
+    def get_profile_picture_url(self, obj):
+        request = self.context.get('request')
+        if obj.profile_picture and request:
+            return request.build_absolute_uri(obj.profile_picture.url)
+        return None
 
     def create(self, validated_data):
         validated_data.pop('is_active', None)
@@ -77,9 +83,18 @@ class CourseLessonCompletionSerializer(serializers.ModelSerializer):
         return attrs
 
 class CourseLessonsSerializer(serializers.ModelSerializer):
-     class Meta:
+    lesson_file_url = serializers.SerializerMethodField()
+
+    
+    class Meta:
         model = models.CourseLesson
-        fields = ['id', 'module_name', 'lesson_number','lesson_description','lesson_type','lesson_file','lesson_transcript','lesson_content','lesson_duration','lesson_completed']
+        fields = ['id', 'module_name', 'lesson_number','lesson_description','lesson_type','lesson_file_url','lesson_transcript','lesson_content','lesson_duration','lesson_completed']
+
+    def get_lesson_file_url (self, obj: models.CourseLesson):
+        request = self.context.get('request')
+        if obj.lesson_file and request:
+            return request.build_absolute_uri(obj.lesson_file.url)
+        return None
 
 class CourseModulesSerializer(serializers.ModelSerializer):
     module_lessons = CourseLessonsSerializer(many=True, read_only=True)

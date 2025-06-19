@@ -59,10 +59,11 @@ class GoogleAuthView(APIView):
                     recipient_list=[user.email],
                     fail_silently=True
                 )
+            serializer= UserSerializer(user, context={'request': request})
             refresh = RefreshToken.for_user(user)
             response= Response({
                 'status':"Authentication successful.",
-                "user":UserSerializer(user).data,
+                "user":serializer.data,
                 "access_token": str(refresh.access_token),
                 "refresh": str(refresh)
             })
@@ -669,7 +670,7 @@ class CourseItemsViewSet(viewsets.ViewSet):
             course=enrolled_course.course_name
         ).order_by('module_order')
 
-        serializer = CourseModulesSerializer(course_modules, many=True)
+        serializer = CourseModulesSerializer(course_modules, many=True,context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     """Contains all the modules for the course and the respective lessons under them."""
