@@ -8,6 +8,9 @@ import logging
 from django.core.files.storage import default_storage
 from django.core.exceptions import ValidationError
 
+import whisper
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 @receiver([post_save, post_delete], sender=LessonCompletion)
@@ -119,3 +122,24 @@ def handle_media_duration(sender, instance, created, **kwargs):
                 
     except Exception as e:
         logger.error(f"General processing error: {e}")
+
+"""For transcribing the audio and video lesson files"""
+@receiver(post_save, sender=CourseLesson)
+def handle_transcription(sender, instance, created, **kwargs):
+
+    if not instance.lesson_file or instance.lesson_type not in ["audio", "video"]:
+        return
+
+    try:
+        model = whisper.load_model("base")
+        file_path = default_storage.path(instance.lesson_file.name)
+        audio = whisper.load_audio(file_path)
+
+        result = model.transcribe(audio)
+        CourseLesson.objects.filter(pk=instance.pk).update(lesson_transcript=result["text"])
+        return result["text"]      
+        
+    except Exception as e:
+        print(f"Transcription failed with: {e}")
+    finally:        
+        print("Done")
