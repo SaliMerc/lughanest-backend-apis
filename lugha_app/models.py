@@ -4,8 +4,6 @@ from django.contrib.auth.models import AbstractUser
 from django.db.models import CharField
 from django.utils import timezone
 
-# import lugha_app.signals
-
 """Choices that will be reused"""
 LEVEL_CHOICES = [
     ('beginner', 'Beginner'),
@@ -100,37 +98,10 @@ class EnrolledCourses(models.Model):
     is_completed=models.BooleanField(default=False)
     enrolment_date = models.DateTimeField(auto_now_add=True)
     completion_date=models.DateTimeField(blank=True, null=True)
-    progress = models.FloatField(default=0.0)
+    course_progress = models.FloatField(default=0.0)
 
     class Meta:
         unique_together = ('student', 'course_name', 'course_level')
-
-    def update_completion_status(self):
-        total_lessons = CourseLesson.objects.filter(
-            module_name__course=self.course_name
-        ).count()
-        
-        if total_lessons == 0:
-            return False
-            
-        completed_lessons = LessonCompletion.objects.filter(
-            lesson_student=self.student,
-            lesson__module_name__course=self.course_name
-        ).count()
-        
-        # Update status if changed
-        if completed_lessons >= total_lessons:
-            if not self.is_completed:
-                self.is_completed = True
-                self.save()
-                return True
-        else:
-            if self.is_completed:
-                self.is_completed = False
-                self.save()
-                return True
-                
-        return False
 
     def save(self, *args, **kwargs):
         if self.is_completed and self.completion_date is None:
@@ -146,6 +117,7 @@ class CourseModule(models.Model):
     module_title = models.CharField(max_length=255)
     module_description = models.TextField()
     module_order = models.IntegerField(default=1)
+    module_progress=models.FloatField(default=0.0)
 
     def __str__(self):
         return f"{self.module_title} - {self.course}"
