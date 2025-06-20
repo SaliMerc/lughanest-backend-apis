@@ -398,21 +398,21 @@ class UserViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['POST'],url_path='change-password')
     def change_password(self, request):
         user = request.user
-        old_password = request.data.get("old-password")
-        new_password = request.data.get("new-password")
-        confirm_password = request.data.get("confirm-password")
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
+        confirm_password = request.data.get("confirm_password")
 
         if not old_password or not new_password:
-            return Response({"error": "Both old and new passwords are required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Both old and new passwords are required."}, status=status.HTTP_200_OK)
 
         if not user.check_password(old_password):
-            return Response({"error": "Old password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Old password is incorrect."}, status=status.HTTP_200_OK)
 
         if new_password != confirm_password:
-            return Response({"error": " New passwords need to be the same."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": " New passwords need to be the same."}, status=status.HTTP_200_OK)
 
         if new_password == old_password:
-            return Response({"error": " New password cannot be the same as the old password"}, status=status.HTTP_200_OK)
+            return Response({"message": " New password cannot be the same as the old password"}, status=status.HTTP_200_OK)
 
         user.set_password(new_password)
         user.save()
@@ -430,10 +430,12 @@ class UserViewSet(viewsets.ViewSet):
 
         if 'rest_framework_simplejwt' in settings.INSTALLED_APPS:
             refresh = RefreshToken.for_user(user)
+            serializer=UserSerializer(user,context={'request': request})
             return Response({
                 "message": "Password updated successfully.",
                 "access": str(refresh.access_token),
-                "refresh": str(refresh)
+                "refresh": str(refresh),
+                "user":serializer.data
             })
 
     """For the users to view all their profile details"""
@@ -518,12 +520,34 @@ class UserViewSet(viewsets.ViewSet):
             return Response({"detail":"Your Email account has changed. To revert to your old email, update your email address."},status=status.HTTP_400_BAD_REQUEST)
 
     """To allow the users to delete their accounts"""
-    @action(detail=False, methods=['DELETE'], url_path='delete-account')
+    @action(detail=False, methods=['DELETE','GET'], url_path='delete-account')
     def delete_account(self,request):
-        user=request.user
-        user.scheduled_deletion_date=timezone.now()+timedelta(days=7)
-        user.save()
-        return Response({"message":"Your account is scheduled to be deleted in seven days"},status=status.HTTP_200_OK)
+        user = request.user
+        
+        if request.method == 'DELETE':
+            # Handle the immediate delete request (button click)
+            user.scheduled_deletion_date = timezone.now() + timedelta(days=7)
+            user.save()
+            return Response(
+                {"message": "Your account is scheduled to be deleted in seven days"},
+                status=status.HTTP_200_OK
+            )
+        
+        elif request.method == 'GET':
+            # Handle the GET request (page load)
+            if user.scheduled_deletion_date:
+                # Return the current deletion status
+                return Response({
+                    "is_scheduled_for_deletion": True,
+                    "scheduled_date": user.scheduled_deletion_date,
+                    "message": f"Account is scheduled for deletion on {user.scheduled_deletion_date}"
+                }, status=status.HTTP_200_OK)
+            else:
+                # No deletion scheduled
+                return Response({
+                    "is_scheduled_for_deletion": False,
+                    "message": "Account is not scheduled for deletion"
+                }, status=status.HTTP_200_OK)
 
     """To allow the users to reverse the account deletion"""
     @action(detail=False, methods=['POST'], url_path='undo-account-deletion')
