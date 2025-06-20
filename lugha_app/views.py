@@ -525,7 +525,6 @@ class UserViewSet(viewsets.ViewSet):
         user = request.user
         
         if request.method == 'DELETE':
-            # Handle the immediate delete request (button click)
             user.scheduled_deletion_date = timezone.now() + timedelta(days=7)
             user.save()
             return Response(
@@ -534,16 +533,13 @@ class UserViewSet(viewsets.ViewSet):
             )
         
         elif request.method == 'GET':
-            # Handle the GET request (page load)
             if user.scheduled_deletion_date:
-                # Return the current deletion status
                 return Response({
                     "is_scheduled_for_deletion": True,
                     "scheduled_date": user.scheduled_deletion_date,
                     "message": f"Account is scheduled for deletion on {user.scheduled_deletion_date}"
                 }, status=status.HTTP_200_OK)
             else:
-                # No deletion scheduled
                 return Response({
                     "is_scheduled_for_deletion": False,
                     "message": "Account is not scheduled for deletion"
