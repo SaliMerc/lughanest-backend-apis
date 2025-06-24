@@ -361,7 +361,6 @@ class UserViewSet(viewsets.ViewSet):
                 return Response({"message": "The password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
         except MyUser.DoesNotExist:
             return Response({"message":"A user with this email does not exist."})
-
         user = authenticate(username=username, password=password)
         serializer=UserSerializer(user,context={'request': request})
         if user:
@@ -451,13 +450,12 @@ class UserViewSet(viewsets.ViewSet):
         user = request.user
         """Retrieve the old email in case the user changes it during profile update"""
         old_email=user.email
-        serializer = UserProfileUpdateSerializer(user, data=request.data, partial=True, context={'request': request})
+        serializer = UserSerializer(user, data=request.data, partial=True, context={'request': request})
 
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         new_email = serializer.validated_data.get('email')
-
         if new_email and new_email!= old_email:
             if MyUser.objects.filter(email=new_email).exists():
                 return Response({"message": "A user with this email already exists, please choose a new email."}, status=status.HTTP_400_BAD_REQUEST)
@@ -480,55 +478,70 @@ class UserViewSet(viewsets.ViewSet):
                 from_email=settings.EMAIL_HOST_USER,
                 recipient_list=[new_email]
             )
-
-            return Response({"detail": "Email verification sent."}, status=status.HTTP_200_OK)
+            return Response({"message": "Email verification sent.","user":serializer.data},  status=status.HTTP_200_OK)
         serializer.save()
-        return Response({"detail":"Profile updated successfully","user":serializer.data}, status=status.HTTP_200_OK)
+        return Response({"message":"Profile updated successfully"}, status=status.HTTP_200_OK)
 
     """Profile update OTP Verification (if email is changed)"""
+
     @action(detail=False, methods=['POST'],url_path='new-email-otp-verification')
     def verify_email_otp(self, request):
-        """Get the current email of the user"""
-        email=request.data.get("email")
-        otp=request.data.get("otp")
+        email = request.data.get("email")
+        new_email = request.data.get("new_email") 
+        otp = request.data.get("otp")
 
         try:
             user = MyUser.objects.get(email=email)
+            
+            if not hasattr(user, 'updated_email') or not user.updated_email:
+                return Response({"message":"No email update request pending"}, status=status.HTTP_400_BAD_REQUEST)
+                
+            if user.updated_email != new_email:  
+                return Response({"message":"Email doesn't match pending update"}, status=status.HTTP_400_BAD_REQUEST)
 
             if otp != user.otp:
-                return Response({"detail":"The OTP is invalid"},status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message":"The OTP is invalid"}, status=status.HTTP_400_BAD_REQUEST)
 
             if user.otp_expiry and timezone.now() > user.otp_expiry:
-                return Response({"detail":"OTP expired, request a new one"},status=status.HTTP_400_BAD_REQUEST)
-
-            send_mail(
-                subject='Verification Successful',
-                message=f"Hello {user.first_name}, \n \n \nYour new email has been verified successfully. \n \n \n \n LughaNest Team",
-                from_email=settings.EMAIL_HOST_USER,
-                recipient_list=[user.updated_email],
-                fail_silently=True
-            )
+                return Response({"message":"OTP expired, request a new one"}, status=status.HTTP_400_BAD_REQUEST)
 
             user.email = user.updated_email
+            user.username = user.updated_email
             user.updated_email = None
             user.otp = None
             user.otp_expiry = None
             user.save()
 
-            return Response({"success":"Your account was verified successfully"},status=status.HTTP_200_OK)
+            serializer = UserSerializer(user)
+            
+            send_mail(
+                subject='Verification Successful',
+                message=f"Hello {user.first_name}, \n\nYour new email has been verified successfully.",
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[user.email],  
+                fail_silently=True
+            )
+
+            return Response({
+                "message": "Your email was updated successfully",
+                "user": serializer.data
+            }, status=status.HTTP_200_OK)
+            
         except MyUser.DoesNotExist:
-            return Response({"detail":"Your Email account has changed. To revert to your old email, update your email address."},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message":"User not found"}, status=status.HTTP_404_NOT_FOUND)
 
     """To allow the users to delete their accounts"""
     @action(detail=False, methods=['DELETE','GET'], url_path='delete-account')
     def delete_account(self,request):
-        user = request.user
-        
+        user = request.user        
         if request.method == 'DELETE':
             user.scheduled_deletion_date = timezone.now() + timedelta(days=7)
             user.save()
             return Response(
-                {"message": "Your account is scheduled to be deleted in seven days"},
+                {"message": "Your account is scheduled to be deleted in seven days",
+                "is_scheduled_for_deletion": True,
+                "scheduled_date": user.scheduled_deletion_date
+                 },
                 status=status.HTTP_200_OK
             )
         
@@ -551,7 +564,9 @@ class UserViewSet(viewsets.ViewSet):
         user = request.user
         user.scheduled_deletion_date = None
         user.save()
-        return Response({"message": "Your account deletion request has been cancelled."}, status=status.HTTP_200_OK)
+        return Response({"message": "Your account deletion request has been cancelled.",
+        "is_scheduled_for_deletion": False
+        }, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['POST'], url_path='logout')
     def logout(self, request):
