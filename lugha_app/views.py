@@ -2,7 +2,9 @@ import random
 import datetime
 from logging import raiseExceptions
 from urllib import request
+from django.db.models import Min, Prefetch
 from django.shortcuts import redirect, get_object_or_404
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from django.contrib.auth import authenticate, update_session_auth_hash
 from django.contrib.auth.handlers.modwsgi import check_password
@@ -17,6 +19,8 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken,TokenError
+
+from django.db import transaction
 
 import jwt
 
@@ -456,6 +460,9 @@ class UserViewSet(viewsets.ViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         new_email = serializer.validated_data.get('email')
+        profile_picture = serializer.validated_data.get('profile_picture')
+        # profile_picture = serializer.validated_data.get('profile_picture')
+        # print(profile_picture)
         if new_email and new_email!= old_email:
             if MyUser.objects.filter(email=new_email).exists():
                 return Response({"message": "A user with this email already exists, please choose a new email."}, status=status.HTTP_400_BAD_REQUEST)
@@ -480,10 +487,9 @@ class UserViewSet(viewsets.ViewSet):
             )
             return Response({"message": "Email verification sent.","user":serializer.data},  status=status.HTTP_200_OK)
         serializer.save()
-        return Response({"message":"Profile updated successfully"}, status=status.HTTP_200_OK)
+        return Response({"message":"Profile updated successfully","user":serializer.data}, status=status.HTTP_200_OK)
 
     """Profile update OTP Verification (if email is changed)"""
-
     @action(detail=False, methods=['POST'],url_path='new-email-otp-verification')
     def verify_email_otp(self, request):
         email = request.data.get("email")
@@ -529,6 +535,37 @@ class UserViewSet(viewsets.ViewSet):
             
         except MyUser.DoesNotExist:
             return Response({"message":"User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['PATCH'], url_path='update-profile-picture', parser_classes=[MultiPartParser, FormParser])
+    def update_profile_picture(self, request):
+        user = request.user
+        
+        # Check if file exists in request
+        if 'profile_picture' not in request.FILES:
+            return Response({"message": "No profile picture provided"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        profile_picture = request.FILES['profile_picture']
+        
+        # Validate file size (example: 5MB limit)
+        if profile_picture.size > 5 * 1024 * 1024:
+            return Response({"message": "File size too large (max 5MB)"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate file type
+        valid_types = ['image/jpeg', 'image/png', 'image/jpg']
+        if profile_picture.content_type not in valid_types:
+            return Response({"message": "Invalid file type (only JPEG, JPG, PNG allowed)"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update profile picture
+        user.profile_picture = profile_picture
+        user.save()
+        
+        # Return new profile picture URL
+        serializer = UserSerializer(user)
+        return Response({
+            "message": "Profile picture updated successfully",
+            "profile_picture_url": user.profile_picture.url,
+            "user": serializer.data
+        }, status=status.HTTP_200_OK)
 
     """To allow the users to delete their accounts"""
     @action(detail=False, methods=['DELETE','GET'], url_path='delete-account')
@@ -692,6 +729,24 @@ class CourseItemsViewSet(viewsets.ViewSet):
             "completed_courses": completed_courses
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['GET'], url_path='dashboard-graphs')
+    def dashboard_graphs(self, request):
+        serializer = DashboardGraphSerializer()
+        
+        weekly_lessons_data = serializer.get_weekly_lessons_data(request.user)
+        monthly_lessons_data = serializer.get_monthly_lessons_data(request.user)
+        
+        weekly_labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        monthly_common_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        return Response({
+            "weekly_lessons_data": weekly_lessons_data,
+            "lessons_by_month_data": monthly_lessons_data,
+            "weekly_labels": weekly_labels,
+            "monthly_common_labels": monthly_common_labels
+        }, status=status.HTTP_200_OK)
+
     """Contains all the modules for the course and the respective lessons under them."""
     @action(detail=False, methods=['GET'], url_path='course-modules/(?P<course_id>[^/.]+)')
     def course_modules(self, request, course_id=None):
@@ -713,17 +768,13 @@ class CourseItemsViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['GET', 'POST'], url_path='course-lesson-completion/(?P<lesson_id>[^/.]+)')
     def lesson_completion(self, request, lesson_id=None):
         lesson = get_object_or_404(CourseLesson, id=lesson_id)
-
-        # Handle GET: check if lesson is already completed
+        
         if request.method == 'GET':
             completed = LessonCompletion.objects.filter(
                 lesson_student=request.user,
                 lesson=lesson
             ).exists()
-            return Response({
-                "status": "success",
-                "completed": completed
-            }, status=status.HTTP_200_OK)
+            return Response({"completed": completed}, status=status.HTTP_200_OK)
 
         serializer = CourseLessonCompletionSerializer(
             data=request.data,
@@ -732,40 +783,28 @@ class CourseItemsViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
 
         try:
-            completion, created = LessonCompletion.objects.get_or_create(
-                lesson_student=request.user,
-                lesson=lesson,
-                defaults=serializer.validated_data
-            )
-
-            if not created:
-                completion.delete()
-                return Response(
-                    {
-                        "status": "success",
-                        "completed": False,
-                        "message": "Lesson marked incomplete"
-                    },
-                    status=status.HTTP_200_OK
+            with transaction.atomic():  # Explicit transaction block
+                completion, created = LessonCompletion.objects.get_or_create(
+                    lesson_student=request.user,
+                    lesson=lesson,
+                    defaults=serializer.validated_data
                 )
 
-            return Response(
-                {
-                    "status": "success",
-                    "completed": True,
-                    "message": "Lesson completed",
-                    "data": CourseLessonCompletionSerializer(completion).data
-                },
-                status=status.HTTP_201_CREATED
-            )
+                if not created:
+                    completion.delete()
+                    return Response(
+                        {"completed": False, "message": "Lesson marked incomplete"},
+                        status=status.HTTP_200_OK
+                    )
+
+                return Response(
+                    {"completed": True, "message": "Lesson completed"},
+                    status=status.HTTP_201_CREATED
+                )
 
         except Exception as e:
-            print(e)
             return Response(
-                {
-                    "status": "error",
-                    "message": "An unexpected error occurred"
-                },
+                {"error": "Operation failed"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -778,6 +817,51 @@ class SubscriptionItemsViewSet(viewsets.ViewSet):
         subscription_items = SubscriptionItem.objects.first()
         serializer = SubscriptionItemsSerializer(subscription_items)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class PartnerViewSet(viewsets.ViewSet):
+    permission_classes=[IsAuthenticated]
+    @action(detail=False, methods=['GET'], url_path='find-partners')
+    def find_partners(self, request):
+        # Get distinct courses for filter dropdown
+        languages = (
+            Course.objects
+            .values('course_name')
+            .annotate(min_id=Min('id'))
+            .order_by('course_name')
+        )
+        
+        # Base queryset for users
+        users_queryset = MyUser.objects.filter(
+            id__in=EnrolledCourses.objects.values('student').distinct().exclude(student=request.user)
+        ).prefetch_related(
+            Prefetch(
+                'students',
+                queryset=EnrolledCourses.objects.select_related('course_name')
+                .order_by('-enrolment_date'),
+                to_attr='courses'
+            )
+        )
+        
+        # Apply search filter if query parameter exists
+        query = request.GET.get('q')
+        if query:
+            users_queryset = users_queryset.filter(
+                id__in=EnrolledCourses.objects.filter(
+                    course_name__course_name__icontains=query
+                ).values('student').distinct()
+            )
+        
+        # Serialize the data
+        user_serializer = PartnerUserSerializer(users_queryset, many=True)
+        course_serializer = CourseItemsSerializer(
+            Course.objects.filter(id__in=[c['min_id'] for c in languages]),
+            many=True
+        )
+        
+        return Response({
+            "users": user_serializer.data,
+            "query": query or ""
+        }, status=status.HTTP_200_OK)
 
 
 

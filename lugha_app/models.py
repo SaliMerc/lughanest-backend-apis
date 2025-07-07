@@ -117,10 +117,21 @@ class CourseModule(models.Model):
     module_title = models.CharField(max_length=255)
     module_description = models.TextField()
     module_order = models.IntegerField(default=1)
-    module_progress=models.FloatField(default=0.0)
 
     def __str__(self):
         return f"{self.module_title} - {self.course}"
+
+
+class ModuleProgress(models.Model):
+    student = models.ForeignKey(MyUser, on_delete=models.CASCADE, related_name='student')
+    module = models.ForeignKey(CourseModule, on_delete=models.CASCADE, related_name='modules')
+    module_progress = models.FloatField(default=0.0) 
+    is_completed = models.BooleanField(default=False)
+    class Meta:
+        unique_together = ('student', 'module')
+    
+    def __str__(self):
+        return self.student.first_name
 
 """Contains all the lessons for the respective modules"""
 class CourseLesson(models.Model):

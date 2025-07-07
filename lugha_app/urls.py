@@ -9,6 +9,7 @@ router.register('blogs', BlogViewSet, basename='blogs')
 router.register('legal', LegalItemsViewSet, basename='legal')
 router.register('courses', CourseItemsViewSet, basename='courses')
 router.register('subscription', SubscriptionItemsViewSet, basename='subscription')
+router.register('find-partners', PartnerViewSet, basename='find-partners')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -1,7 +1,11 @@
 from django.contrib.auth import password_validation
 from rest_framework import serializers
 import lugha_app.models as models
-from .models import MyUser
+from .models import MyUser, LessonCompletion, EnrolledCourses
+from django.db.models.functions import TruncDay, TruncMonth
+from django.db.models import Count
+from datetime import timedelta
+from django.utils import timezone
 
 class UserSerializer(serializers.ModelSerializer):
     profile_picture_url = serializers.SerializerMethodField()
@@ -25,7 +29,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = MyUser
         fields = ['email','display_name', 'profile_picture', 'languages_spoken']
-
+    
 class BlogSerializer(serializers.ModelSerializer):
     blog_image_url = serializers.SerializerMethodField()
 
@@ -70,6 +74,101 @@ class EnrollCourseItemsSerializer(serializers.ModelSerializer):
     def create(self,validated_data):
         validated_data['student'] = self.context['request'].user
         return super().create(validated_data)
+    
+class PartnerUserSerializer(serializers.ModelSerializer):
+    courses = serializers.SerializerMethodField()
+    profile_picture_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MyUser
+        fields = ['id', 'username', 'display_name', 'profile_picture_url', 'courses']
+    
+    def get_profile_picture_url(self, obj):
+        request = self.context.get('request')
+        if obj.profile_picture and request:
+            return request.build_absolute_uri(obj.profile_picture.url)
+        return None
+    
+    def get_courses(self, obj):
+        # Get the user's enrolled courses
+        user_courses = EnrolledCourses.objects.filter(
+            student=obj
+        ).select_related('course_name').order_by('-enrolment_date')
+        
+        # Return the serialized data
+        return [
+            {
+                'course_name': course.course_name.course_name,
+                'course_level': course.course_level,
+                'enrolment_date': course.enrolment_date
+            }
+            for course in user_courses
+        ]
+
+class DashboardGraphSerializer(serializers.Serializer):
+    def get_weekly_lessons_data(self, user):
+        today = timezone.now().date()
+        start_of_week = today - timedelta(days=today.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+
+        weekly_lesson_completion = LessonCompletion.objects.filter(
+            lesson_student=user, 
+            completed_at__gte=start_of_week,
+            completed_at__lte=end_of_week
+        )
+
+        lessons_completed_by_week = weekly_lesson_completion.annotate(
+            week=TruncDay('completed_at')
+        ).values('week').annotate(
+            total_lessons=Count('id')
+        ).order_by('week')
+
+        weekly_lessons_data = {
+            'labels': [entry['week'].strftime('%a') for entry in lessons_completed_by_week],
+            'data': [entry['total_lessons'] for entry in lessons_completed_by_week]
+        }
+
+        weekly_labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        weekly_lessons_data = [
+            weekly_lessons_data['data'][weekly_lessons_data['labels'].index(label)] 
+            if label in weekly_lessons_data['labels'] else 0 
+            for label in weekly_labels
+        ]
+        
+        return weekly_lessons_data
+
+    def get_monthly_lessons_data(self, user):
+        today = timezone.now().date()
+        start_of_year = today.replace(month=1, day=1)
+        end_of_year = today.replace(month=12, day=31)
+
+        monthly_lesson_completion = LessonCompletion.objects.filter(
+            lesson_student=user,
+            completed_at__gte=start_of_year,
+            completed_at__lte=end_of_year
+        )
+
+        lessons_by_month = monthly_lesson_completion.annotate(
+            month=TruncMonth('completed_at')
+        ).values('month').annotate(
+            total_lessons_by_month=Count('id')
+        ).order_by('month')
+
+        lessons_by_month_data = {
+            'labels': [entry['month'].strftime('%b') for entry in lessons_by_month],
+            'data': [entry['total_lessons_by_month'] for entry in lessons_by_month]
+        }
+
+        monthly_common_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        lessons_by_month_data = [
+            lessons_by_month_data['data'][lessons_by_month_data['labels'].index(label)] 
+            if label in lessons_by_month_data['labels'] else 0 
+            for label in monthly_common_labels
+        ]
+        
+        return lessons_by_month_data
 
 
 class CourseLessonCompletionSerializer(serializers.ModelSerializer):
@@ -96,13 +195,20 @@ class CourseLessonsSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.lesson_file.url)
         return None
 
+class CourseModuleCompletionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ModuleProgress
+        fields = ['id','module','module_progress']
+        read_only_fields = ['student']
+
 class CourseModulesSerializer(serializers.ModelSerializer):
     module_lessons = CourseLessonsSerializer(many=True, read_only=True)
+    modules = CourseModuleCompletionSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.CourseModule
-        fields = ['id', 'course', 'module_title','module_description','module_lessons','module_progress']
-
+        fields = ['id', 'course', 'module_title', 'module_description', 
+                 'module_lessons', 'modules']
 
 
 

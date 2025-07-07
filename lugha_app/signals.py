@@ -11,66 +11,72 @@ from django.core.exceptions import ValidationError
 import whisper
 from pathlib import Path
 
+from django.db import transaction
+
 logger = logging.getLogger(__name__)
 
 @receiver([post_save, post_delete], sender=LessonCompletion)
 def update_course_completion(sender, instance, **kwargs):
     """
-    Signal handler to update course completion status when a lesson is completed or uncompleted.
+    Signal handler to update course and module completion status
+    when a lesson is completed or uncompleted.
     """
     course = instance.lesson.module_name.course
     course_module = instance.lesson.module_name
     student = instance.lesson_student
-    
-    # Getting all lessons in the course for all the modules
-    total_lessons = CourseLesson.objects.filter(
-        module_name__course=course
-    ).count()
 
-    # getting all the lessons in the module
-    module_total_lessons = CourseLesson.objects.filter(
-        module_name=course_module
-    ).count()
-    
-    if total_lessons == 0:
-        return
-    
-    #getting all the completed lessons in the course by the student
-    completed_lessons = LessonCompletion.objects.filter(
-        lesson_student=student,
-        lesson__module_name__course=course
-    ).count()
+    with transaction.atomic():
+        # Total lessons in the course
+        total_lessons = CourseLesson.objects.filter(
+            module_name__course=course
+        ).count()
 
-    #getting all the completed lessons in the module by the student
-    module_completed_lessons = LessonCompletion.objects.filter(
-        lesson_student=student,
-        lesson__module_name=course_module
-    ).count()
-    
-    #getting the progress of both
-    completion_percentage = (completed_lessons / total_lessons) * 100
-    module_completion_percentage = (module_completed_lessons / module_total_lessons) * 100
-    
-    try:
-        enrollment = EnrolledCourses.objects.get(
-            student=student,
-            course_name=course
-        )
-        
-        # Updating completion status
-        enrollment.is_completed = (completed_lessons == total_lessons)
-        
-        if hasattr(enrollment, 'course_progress'):
+        # Total lessons in the specific module
+        module_total_lessons = CourseLesson.objects.filter(
+            module_name=course_module
+        ).count()
+
+        if total_lessons == 0 or module_total_lessons == 0:
+            return
+
+        # Completed lessons in the course
+        completed_lessons = LessonCompletion.objects.filter(
+            lesson_student=student,
+            lesson__module_name__course=course
+        ).count()
+
+        # Completed lessons in the module
+        module_completed_lessons = LessonCompletion.objects.filter(
+            lesson_student=student,
+            lesson__module_name=course_module
+        ).count()
+
+        # Progress percentages
+        completion_percentage = (completed_lessons / total_lessons) * 100
+        module_completion_percentage = (module_completed_lessons / module_total_lessons) * 100
+
+        try:
+            # Update course enrollment progress
+            enrollment = EnrolledCourses.objects.get(
+                student=student,
+                course_name=course
+            )
             enrollment.course_progress = completion_percentage
-        
-        enrollment.save()
+            enrollment.is_completed = (completed_lessons == total_lessons)
+            enrollment.save()
 
-        # Updating module progress
-        course_module.module_progress = module_completion_percentage
-        course_module.save()
-            
-    except EnrolledCourses.DoesNotExist:
-        pass
+            progress_obj, created = ModuleProgress.objects.get_or_create(
+                student=student,
+                module=course_module
+            )
+            progress_obj.module_progress = module_completion_percentage
+            progress_obj.is_completed = (module_completed_lessons == module_total_lessons)
+            progress_obj.save()
+
+            print(progress_obj.module_progress)
+
+        except EnrolledCourses.DoesNotExist:
+            pass
 
 
 """For extracting duration of audios and videos when uploaded"""
