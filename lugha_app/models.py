@@ -177,3 +177,31 @@ class Message(models.Model):
     def __str__(self):
         return self.message_content
 """Chats models ends here"""
+
+"""Payments model starts here"""
+class Transactions(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    SUBSCRIPTION_CHOICES = [
+        ('monthly', 'Monthly'),
+        ('yearly', 'Yearly'),
+    ]
+
+    student = models.ForeignKey(MyUser, on_delete=models.CASCADE, default=1, related_name='my_student')
+    phone_number=models.CharField(max_length=16)
+    subscription_type=models.CharField(max_length=10, null=True, blank=True, choices=SUBSCRIPTION_CHOICES, default='monthly')
+    amount=models.DecimalField(decimal_places=2, max_digits=10)
+
+    mpesa_code=models.CharField(max_length=50,null=True, blank=True)
+    checkout_id=models.CharField(max_length=50,null=True, blank=True)
+    result_description=models.TextField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES,null=True, blank=True, default='pending')
+
+    subscription_start_date=models.DateTimeField(null=True, blank=True)
+    subscription_end_date=models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.student.first_name} has paid {self.amount} for subscription {self.subscription_type}"

@@ -722,25 +722,20 @@ class CourseItemsViewSet(viewsets.ViewSet):
                 completed_courses.append(serialized_course)
             else:
                 ongoing_courses.append(serialized_course)
-
-
-        return Response({
-            "ongoing_courses": ongoing_courses,
-            "completed_courses": completed_courses
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=['GET'], url_path='dashboard-graphs')
-    def dashboard_graphs(self, request):
-        serializer = DashboardGraphSerializer()
         
-        weekly_lessons_data = serializer.get_weekly_lessons_data(request.user)
-        monthly_lessons_data = serializer.get_monthly_lessons_data(request.user)
+        graph_serializer = DashboardGraphSerializer()
+        
+        weekly_lessons_data = graph_serializer.get_weekly_lessons_data(request.user)
+        monthly_lessons_data = graph_serializer.get_monthly_lessons_data(request.user)
         
         weekly_labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
         monthly_common_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        
+
+
         return Response({
+            "ongoing_courses": ongoing_courses,
+            "completed_courses": completed_courses,
             "weekly_lessons_data": weekly_lessons_data,
             "lessons_by_month_data": monthly_lessons_data,
             "weekly_labels": weekly_labels,
