@@ -15,6 +15,11 @@ import os
 
 from decouple import config
 
+MPESA_CONSUMER_KEY = config('CONSUMER_KEY')
+MPESA_CONSUMER_SECRET = config('CONSUMER_SECRET')
+MPESA_API_URL = config('API_URL')
+MPESA_CALLBACK_URL = config('CALLBACK_URL')
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -40,7 +45,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
     'lugha_app',
+    'payment_app',
+    'chats_app',
+
     'silk',
     'rest_framework',
     'rest_framework_simplejwt',

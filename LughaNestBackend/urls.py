@@ -37,6 +37,8 @@ schema_view = get_schema_view(
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/',include('lugha_app.urls')),
+    path('api/v1/payment/',include('payment_app.urls')),
+    path('api/v1/chats/',include('chats_app.urls')),
 
     path('silk/', include('silk.urls', namespace='silk')),
 

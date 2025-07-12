@@ -854,7 +854,7 @@ class PartnerViewSet(viewsets.ViewSet):
         )
         
         return Response({
-            "users": user_serializer.data,
+            "data": user_serializer.data,
             "query": query or ""
         }, status=status.HTTP_200_OK)
 
