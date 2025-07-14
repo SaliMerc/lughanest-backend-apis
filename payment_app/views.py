@@ -97,39 +97,33 @@ class LipaNaMpesaOnlineAPIView(APIView):
                 "message": 'Failed to initiate payment'
             }, status=response.status_code)
         
-@csrf_exempt
-def callback(request):
-    if request.method != 'POST':
-        return Response({"error": "Method not allowed"}, status=405)
-    else:
+class MpesaCallbackAPIView(APIView):
+    def post(self, request, *args, **kwargs):
         try:
-            # Handling text/plain content type
-            content_type = request.headers.get('Content-Type', '')
-            if 'application/json' not in content_type:
-                # If content type is not JSON, assume it's text/plain and parse it as JSON
-                callback_data = json.loads(request.body.decode('utf-8'))
-            else:
-                # If content type is JSON, parse it directly
-                callback_data = json.loads(request.body.decode('utf-8'))
+            callback_data = request.data
             print(callback_data)
-            print('this is the callback data')
 
             result_code = callback_data["Body"]["stkCallback"]["ResultCode"]
             checkout_id = callback_data["Body"]["stkCallback"]["CheckoutRequestID"]
 
-            print(result_code, checkout_id)
             if result_code != 0:
-                # Updating transaction as failed if it fails
                 result_description = callback_data["Body"]["stkCallback"]["ResultDesc"]
-                Transactions.objects.filter(checkout_id=checkout_id).update(status="failed", result_description=result_description,)
-                return Response({"result_code": result_code})
+
+                Transactions.objects.filter(checkout_id=checkout_id).update(
+                    status="failed",
+                    result_description=result_description,
+                )
+
+                return Response({
+                    "status": "failed",
+                    "message": "Payment Failed"
+                }, status=status.HTTP_200_OK)
 
             result_description = callback_data["Body"]["stkCallback"]["ResultDesc"]
             body = callback_data["Body"]["stkCallback"]["CallbackMetadata"]["Item"]
             mpesa_code = next(item["Value"] for item in body if item["Name"] == "MpesaReceiptNumber")
             phone_number = next(item["Value"] for item in body if item["Name"] == "PhoneNumber")
             amount = next(item["Value"] for item in body if item["Name"] == "Amount")
-            
 
             Transactions.objects.filter(checkout_id=checkout_id).update(
                 amount=amount,
@@ -138,12 +132,19 @@ def callback(request):
                 status="completed",
                 result_description=result_description
             )
+
             print("process ended")
 
-            return Response({"status": "success", "mpesa_code": mpesa_code})
+            return Response({
+                "status": "success",
+                "message": "Payment successful"
+            }, status=status.HTTP_200_OK)
 
         except (json.JSONDecodeError, KeyError) as e:
-            return Response(f"Invalid Request: {str(e)}")
+            return Response(
+                {"error": f"Invalid Request: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class PaymentStatusAPIView(APIView):
     permission_classes=[IsAuthenticated]

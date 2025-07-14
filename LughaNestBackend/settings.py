@@ -20,7 +20,6 @@ MPESA_CONSUMER_SECRET = config('CONSUMER_SECRET')
 MPESA_API_URL = config('API_URL')
 MPESA_CALLBACK_URL = config('CALLBACK_URL')
 
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -34,7 +33,7 @@ SECRET_KEY = 'django-insecure-m0oqivi1$3o19^l$lu6gfum35n-y@(k@0t$kw_k)#px_w@&o04
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG_STATUS')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com','b872bced771c.ngrok-free.app']
 
 
 # Application definition
