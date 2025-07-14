@@ -30,11 +30,6 @@ DEBUG = config('DEBUG_STATUS')
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com','5ab79dd35c0a.ngrok-free.app']
 
-# MPESA_CONSUMER_KEY = config('CONSUMER_KEY')
-# MPESA_CONSUMER_SECRET = config('CONSUMER_SECRET')
-# MPESA_API_URL = config('API_URL')
-# MPESA_CALLBACK_URL = config('CALLBACK_URL')
-
 # Application definition
 
 INSTALLED_APPS = [

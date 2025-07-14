@@ -16,9 +16,6 @@ from django.conf import settings
 import json
 from .models import Transactions
 from django.contrib.auth import get_user_model
-
-# from payment_app.credentials import MpesaAccessToken, LipanaMpesaPassword,MpesaC2bCredential
-
 from rest_framework.schemas import AutoSchema
 
 from django_daraja.mpesa.core import MpesaClient
