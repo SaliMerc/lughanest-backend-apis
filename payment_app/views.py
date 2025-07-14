@@ -30,8 +30,6 @@ class LipaNaMpesaOnlineAPIView(APIView):
         user_id = request.user
         subscription_type = request.data.get('subscription_type', 'monthly')
 
-        print(amount, phone, user_id.first_name)
-
         if not amount or not phone:
             return Response(
                 {"message": "Amount, phone number and user ID are required",
@@ -64,7 +62,6 @@ class LipaNaMpesaOnlineAPIView(APIView):
         if response.status_code == 200:
             # Create a new transaction record
             checkout_request_id = response_data.get('CheckoutRequestID')
-            merchant_request_id = response_data.get('MerchantRequestID')
             customer_message = response_data.get('CustomerMessage')
 
             transaction = Transactions.objects.create(
@@ -72,6 +69,7 @@ class LipaNaMpesaOnlineAPIView(APIView):
                 phone_number=phone,
                 amount=amount,
                 subscription_type=subscription_type,
+                result_description= customer_message,
                 checkout_id=checkout_request_id,
                 status='pending'
             )
@@ -80,7 +78,6 @@ class LipaNaMpesaOnlineAPIView(APIView):
                 "success": True,
                 "message": customer_message,
                 "data": response_data,
-                "transaction_id": transaction.id
             }, status=status.HTTP_200_OK)
         else:
             return Response({
