@@ -1,7 +1,10 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from django.http import JsonResponse
+from payment_app.serializers import TransactionsSerializer
+from django.views.decorators.csrf import csrf_exempt
+
 import requests
 from datetime import datetime
 import base64
@@ -21,6 +24,15 @@ class LipaNaMpesaOnlineAPIView(APIView):
     """
 
     schema = AutoSchema()
+
+    def format_phone_number(self, phone):
+        """Format phone number to 2547XXXXXXXX"""
+        if phone.startswith('0'):
+            return '254'+phone[1:]
+        elif phone.startswith('+254'):
+            return phone[1:]
+        return phone
+    
     def post(self, request, *args, **kwargs):
         """
         Initiate STK push to customer's phone
@@ -37,6 +49,8 @@ class LipaNaMpesaOnlineAPIView(APIView):
                  },
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        phone = self.format_phone_number(phone)
 
         access_token = MpesaAccessToken.validated_mpesa_access_token
         api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
@@ -50,7 +64,6 @@ class LipaNaMpesaOnlineAPIView(APIView):
             "PartyA": phone,
             "PartyB": LipanaMpesaPassword.Business_short_code,
             "PhoneNumber": phone,
-            # this should be a public url maybe from the hosted site or ngrok
             "CallBackURL":MpesaC2bCredential.callback_url,
             "AccountReference": "Mercy Saline",
             "TransactionDesc": "Site Report Charges"
@@ -58,9 +71,8 @@ class LipaNaMpesaOnlineAPIView(APIView):
 
         response = requests.post(api_url, json=request_data, headers=headers)
         response_data = response.json()
-
+        
         if response.status_code == 200:
-            # Create a new transaction record
             checkout_request_id = response_data.get('CheckoutRequestID')
             customer_message = response_data.get('CustomerMessage')
 
@@ -82,135 +94,70 @@ class LipaNaMpesaOnlineAPIView(APIView):
         else:
             return Response({
                 "success": False,
-                "error": response_data.get('errorMessage', 'Failed to initiate payment')
+                "message": 'Failed to initiate payment'
             }, status=response.status_code)
-
-    # except User.DoesNotExist:
-    #     return Response(
-    #         {"error": "User not found"},
-    #         status=status.HTTP_404_NOT_FOUND
-    #     )
-    # except Exception as e:
-    #     return Response(
-    #         {"error": "An error occurred while processing your request"},
-    #         status=status.HTTP_500_INTERNAL_SERVER_ERROR
-    #     )
-
-def format_phone_number(self, phone):
-    """Format phone number to 2547XXXXXXXX"""
-    if phone.startswith('0'):
-        return '254' + phone[1:]
-    elif phone.startswith('+254'):
-        return phone[1:]
-    return phone
-
-
-class MpesaCallbackAPIView(APIView):
-    """
-    Handle M-Pesa callback after payment is completed
-    """
-    schema = AutoSchema()
-    
-    def post(self, request, *args, **kwargs):
+        
+@csrf_exempt
+def callback(request):
+    if request.method != 'POST':
+        return Response({"error": "Method not allowed"}, status=405)
+    else:
         try:
-            data = request.data
+            # Handling text/plain content type
+            content_type = request.headers.get('Content-Type', '')
+            if 'application/json' not in content_type:
+                # If content type is not JSON, assume it's text/plain and parse it as JSON
+                callback_data = json.loads(request.body.decode('utf-8'))
+            else:
+                # If content type is JSON, parse it directly
+                callback_data = json.loads(request.body.decode('utf-8'))
+            print(callback_data)
+            print('this is the callback data')
+
+            result_code = callback_data["Body"]["stkCallback"]["ResultCode"]
+            checkout_id = callback_data["Body"]["stkCallback"]["CheckoutRequestID"]
+
+            print(result_code, checkout_id)
+            if result_code != 0:
+                # Updating transaction as failed if it fails
+                result_description = callback_data["Body"]["stkCallback"]["ResultDesc"]
+                Transactions.objects.filter(checkout_id=checkout_id).update(status="failed", result_description=result_description,)
+                return Response({"result_code": result_code})
+
+            result_description = callback_data["Body"]["stkCallback"]["ResultDesc"]
+            body = callback_data["Body"]["stkCallback"]["CallbackMetadata"]["Item"]
+            mpesa_code = next(item["Value"] for item in body if item["Name"] == "MpesaReceiptNumber")
+            phone_number = next(item["Value"] for item in body if item["Name"] == "PhoneNumber")
+            amount = next(item["Value"] for item in body if item["Name"] == "Amount")
             
-            # Safely get nested dictionary values
-            callback_metadata = data.get('Body', {}).get('stkCallback', {}).get('CallbackMetadata', {})
-            items = callback_metadata.get('Item', [])
-            
-            payment_data = {
-                'merchant_request_id': data.get('Body', {}).get('stkCallback', {}).get('MerchantRequestID', ''),
-                'checkout_request_id': data.get('Body', {}).get('stkCallback', {}).get('CheckoutRequestID', ''),
-                'result_code': data.get('Body', {}).get('stkCallback', {}).get('ResultCode', ''),
-                'result_desc': data.get('Body', {}).get('stkCallback', {}).get('ResultDesc', ''),
-                'amount': None,
-                'mpesa_receipt_number': None,
-                'transaction_date': None,
-                'phone_number': None,
-            }
 
-            # Extract values from callback metadata
-            for item in items:
-                if item.get('Name') == 'Amount':
-                    payment_data['amount'] = item.get('Value')
-                elif item.get('Name') == 'MpesaReceiptNumber':
-                    payment_data['mpesa_receipt_number'] = item.get('Value')
-                elif item.get('Name') == 'TransactionDate':
-                    payment_data['transaction_date'] = item.get('Value')
-                elif item.get('Name') == 'PhoneNumber':
-                    payment_data['phone_number'] = item.get('Value')
+            Transactions.objects.filter(checkout_id=checkout_id).update(
+                amount=amount,
+                mpesa_code=mpesa_code,
+                phone_number=phone_number,
+                status="completed",
+                result_description=result_description
+            )
+            print("process ended")
 
-            # Update the transaction record
-            try:
-                transaction = Transactions.objects.get(
-                    checkout_id=payment_data['checkout_request_id']
-                )
-                
-                transaction.mpesa_code = payment_data['mpesa_receipt_number']
-                transaction.status = 'completed' if payment_data['result_code'] == 0 else 'failed'
-                transaction.result_description = payment_data['result_desc']
-                transaction.save()
-                
-                # The signal will handle the subscription dates and is_active status
-                
-            except Transactions.DoesNotExist:
-                return None
-            # M-Pesa expects a response
-            response = {
-                "ResultCode": 0,
-                "ResultDesc": "Accepted"
-            }
-            return Response(response, status=status.HTTP_200_OK)
+            return Response({"status": "success", "mpesa_code": mpesa_code})
 
-        except Exception as e:
-            response = {
-                "ResultCode": 1,
-                "ResultDesc": "Rejected"
-            }
-            return Response(response, status=status.HTTP_400_BAD_REQUEST)
-
+        except (json.JSONDecodeError, KeyError) as e:
+            return Response(f"Invalid Request: {str(e)}")
 
 class PaymentStatusAPIView(APIView):
+    permission_classes=[IsAuthenticated]
     """
-    Check payment status by checkout_request_id or transaction ID
+    To retrive all the transactions made by a user
     """
     schema = AutoSchema()
     def get(self, request, *args, **kwargs):
-        checkout_id = request.query_params.get('checkout_id')
-        transaction_id = request.query_params.get('transaction_id')
-        
-        if not checkout_id and not transaction_id:
-            return Response(
-                {"error": "Either checkout_id or transaction_id is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            if checkout_id:
-                transaction = Transactions.objects.get(checkout_id=checkout_id)
-            else:
-                transaction = Transactions.objects.get(id=transaction_id)
-                
-            data = {
-                'id': transaction.id,
-                'student': transaction.student.id,
-                'student_name': transaction.student.get_full_name(),
-                'status': transaction.status,
-                'amount': str(transaction.amount),
-                'phone_number': transaction.phone_number,
-                'subscription_type': transaction.subscription_type,
-                'mpesa_code': transaction.mpesa_code,
-                'is_active': transaction.is_active,
-                'subscription_start_date': transaction.subscription_start_date,
-                'subscription_end_date': transaction.subscription_end_date,
-                'result_description': transaction.result_description,
-                'created_at': transaction.created_at
-            }
-            return Response(data, status=status.HTTP_200_OK)
-            
-        except Transactions.DoesNotExist:
-            return Response(
-                {"error": "Transaction not found"}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
+        transactions=Transactions.objects.filter(student=request.user)
+        serializer=TransactionsSerializer(transactions, many=True)        
+        return Response(
+            {
+                "message":"Transaction retrieved sucessfully",
+                "data":serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
