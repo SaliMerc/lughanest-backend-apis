@@ -8,8 +8,9 @@ import base64
 from django.conf import settings
 import json
 from .models import Transactions
-import logging
 from django.contrib.auth import get_user_model
+
+from payment_app.credentials import MpesaAccessToken, LipanaMpesaPassword,MpesaC2bCredential
 
 from rest_framework.schemas import AutoSchema
 User = get_user_model()
@@ -20,121 +21,91 @@ class LipaNaMpesaOnlineAPIView(APIView):
     """
 
     schema = AutoSchema()
-    
-    def get_access_token(self):
-        consumer_key = settings.MPESA_CONSUMER_KEY
-        consumer_secret = settings.MPESA_CONSUMER_SECRET
-        api_URL = settings.MPESA_AUTH_URL
-        
-        try:
-            r = requests.get(api_URL, auth=(consumer_key, consumer_secret))
-            return r.json()['access_token']
-        except Exception as e:
-            logger.error(f"Error getting access token: {str(e)}")
-            return None
-
     def post(self, request, *args, **kwargs):
         """
         Initiate STK push to customer's phone
         """
-        access_token = self.get_access_token()
-        if not access_token:
-            return Response(
-                {"error": "Unable to get access token"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
         amount = request.data.get('amount')
         phone = request.data.get('phone')
-        user_id = request.data.get('user_id')
+        user_id = request.user
         subscription_type = request.data.get('subscription_type', 'monthly')
 
-        if not amount or not phone or not user_id:
+        print(amount, phone, user_id.first_name)
+
+        if not amount or not phone:
             return Response(
-                {"error": "Amount, phone number and user ID are required"},
+                {"message": "Amount, phone number and user ID are required",
+                 "data":[]
+                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        try:
-            user = User.objects.get(id=user_id)
-            formatted_phone = self.format_phone_number(phone)
-            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-            business_short_code = settings.MPESA_PAYBILL
-            passkey = settings.MPESA_PASSKEY
-            
-            data_to_encode = business_short_code + passkey + timestamp
-            encoded = base64.b64encode(data_to_encode.encode())
-            password = encoded.decode('utf-8')
+        access_token = MpesaAccessToken.validated_mpesa_access_token
+        api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+        headers = {"Authorization": "Bearer %s" % access_token}
+        request_data = {
+            "BusinessShortCode": LipanaMpesaPassword.Business_short_code,
+            "Password": LipanaMpesaPassword.decode_password,
+            "Timestamp": LipanaMpesaPassword.lipa_time,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": amount,
+            "PartyA": phone,
+            "PartyB": LipanaMpesaPassword.Business_short_code,
+            "PhoneNumber": phone,
+            # this should be a public url maybe from the hosted site or ngrok
+            "CallBackURL":MpesaC2bCredential.callback_url,
+            "AccountReference": "Mercy Saline",
+            "TransactionDesc": "Site Report Charges"
+        }
 
-            api_url = settings.MPESA_STK_PUSH_URL
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json"
-            }
+        response = requests.post(api_url, json=request_data, headers=headers)
+        response_data = response.json()
 
-            payload = {
-                "BusinessShortCode": business_short_code,
-                "Password": password,
-                "Timestamp": timestamp,
-                "TransactionType": "CustomerPayBillOnline",
-                "Amount": amount,
-                "PartyA": formatted_phone,
-                "PartyB": business_short_code,
-                "PhoneNumber": formatted_phone,
-                "CallBackURL": settings.MPESA_CALLBACK_URL,
-                "AccountReference": f"SUB-{subscription_type.upper()}",
-                "TransactionDesc": f"{subscription_type} subscription payment"
-            }
+        if response.status_code == 200:
+            # Create a new transaction record
+            checkout_request_id = response_data.get('CheckoutRequestID')
+            merchant_request_id = response_data.get('MerchantRequestID')
+            customer_message = response_data.get('CustomerMessage')
 
-            response = requests.post(api_url, json=payload, headers=headers)
-            response_data = response.json()
-
-            if response.status_code == 200:
-                # Create a new transaction record
-                checkout_request_id = response_data.get('CheckoutRequestID')
-                merchant_request_id = response_data.get('MerchantRequestID')
-                customer_message = response_data.get('CustomerMessage')
-
-                transaction = Transactions.objects.create(
-                    student=user,
-                    phone_number=formatted_phone,
-                    amount=amount,
-                    subscription_type=subscription_type,
-                    checkout_id=checkout_request_id,
-                    status='pending'
-                )
-
-                return Response({
-                    "success": True,
-                    "message": customer_message,
-                    "data": response_data,
-                    "transaction_id": transaction.id
-                }, status=status.HTTP_200_OK)
-            else:
-                return Response({
-                    "success": False,
-                    "error": response_data.get('errorMessage', 'Failed to initiate payment')
-                }, status=response.status_code)
-
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except Exception as e:
-            logger.error(f"Error in STK push: {str(e)}")
-            return Response(
-                {"error": "An error occurred while processing your request"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            transaction = Transactions.objects.create(
+                student=user_id,
+                phone_number=phone,
+                amount=amount,
+                subscription_type=subscription_type,
+                checkout_id=checkout_request_id,
+                status='pending'
             )
 
-    def format_phone_number(self, phone):
-        """Format phone number to 2547XXXXXXXX"""
-        if phone.startswith('0'):
-            return '254' + phone[1:]
-        elif phone.startswith('+254'):
-            return phone[1:]
-        return phone
+            return Response({
+                "success": True,
+                "message": customer_message,
+                "data": response_data,
+                "transaction_id": transaction.id
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                "success": False,
+                "error": response_data.get('errorMessage', 'Failed to initiate payment')
+            }, status=response.status_code)
+
+    # except User.DoesNotExist:
+    #     return Response(
+    #         {"error": "User not found"},
+    #         status=status.HTTP_404_NOT_FOUND
+    #     )
+    # except Exception as e:
+    #     return Response(
+    #         {"error": "An error occurred while processing your request"},
+    #         status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    #     )
+
+def format_phone_number(self, phone):
+    """Format phone number to 2547XXXXXXXX"""
+    if phone.startswith('0'):
+        return '254' + phone[1:]
+    elif phone.startswith('+254'):
+        return phone[1:]
+    return phone
 
 
 class MpesaCallbackAPIView(APIView):
@@ -187,8 +158,7 @@ class MpesaCallbackAPIView(APIView):
                 # The signal will handle the subscription dates and is_active status
                 
             except Transactions.DoesNotExist:
-                logger.error(f"Transaction with checkout ID {payment_data['checkout_request_id']} not found")
-            
+                return None
             # M-Pesa expects a response
             response = {
                 "ResultCode": 0,
