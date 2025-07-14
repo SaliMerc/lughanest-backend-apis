@@ -15,11 +15,6 @@ import os
 
 from decouple import config
 
-MPESA_CONSUMER_KEY = config('CONSUMER_KEY')
-MPESA_CONSUMER_SECRET = config('CONSUMER_SECRET')
-MPESA_API_URL = config('API_URL')
-MPESA_CALLBACK_URL = config('CALLBACK_URL')
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -33,8 +28,12 @@ SECRET_KEY = 'django-insecure-m0oqivi1$3o19^l$lu6gfum35n-y@(k@0t$kw_k)#px_w@&o04
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG_STATUS')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com','b872bced771c.ngrok-free.app']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com','5ab79dd35c0a.ngrok-free.app']
 
+# MPESA_CONSUMER_KEY = config('CONSUMER_KEY')
+# MPESA_CONSUMER_SECRET = config('CONSUMER_SECRET')
+# MPESA_API_URL = config('API_URL')
+# MPESA_CALLBACK_URL = config('CALLBACK_URL')
 
 # Application definition
 
@@ -57,6 +56,8 @@ INSTALLED_APPS = [
     'drf_yasg',
     'corsheaders',
     'moviepy',
+
+    'django_daraja',
 ]
 
 MIDDLEWARE = [
@@ -235,3 +236,46 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 FRONTEND_HOST='http://localhost:5173'
+
+"""MPESA SETUP"""
+# The Mpesa environment to use
+# Possible values: sandbox, production
+
+MPESA_ENVIRONMENT = 'sandbox'
+
+# Credentials for the daraja app
+
+MPESA_CONSUMER_KEY = config('CONSUMER_KEY')
+MPESA_CONSUMER_SECRET = config('CONSUMER_SECRET')
+MPESA_PASSKEY= config('MPESA_PASSKEY')
+
+#Shortcode to use for transactions. For sandbox  use the Shortcode 1 provided on test credentials page
+
+MPESA_SHORTCODE = config('MPESA_SHORTCODE')
+
+# Shortcode to use for Lipa na MPESA Online (MPESA Express) transactions
+# This is only used on sandbox, do not set this variable in production
+# For sandbox use the Lipa na MPESA Online Shorcode provided on test credentials page
+
+MPESA_EXPRESS_SHORTCODE = config('MPESA_EXPRESS_SHORTCODE')
+
+# Type of shortcode
+# Possible values:
+# - paybill (For Paybill)
+# - till_number (For Buy Goods Till Number)
+
+MPESA_SHORTCODE_TYPE = 'paybill'
+
+# Lipa na MPESA Online passkey
+# Sandbox passkey is available on test credentials page
+# Production passkey is sent via email once you go live
+
+MPESA_PASSKEY = config('MPESA_PASSKEY')
+
+# Username for initiator (to be used in B2C, B2B, AccountBalance and TransactionStatusQuery Transactions)
+
+MPESA_INITIATOR_USERNAME = 'initiator_username'
+
+# Plaintext password for initiator (to be used in B2C, B2B, AccountBalance and TransactionStatusQuery Transactions)
+
+MPESA_INITIATOR_SECURITY_CREDENTIAL = 'initiator_security_credential'

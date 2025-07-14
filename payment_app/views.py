@@ -1,9 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+
+from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from payment_app.serializers import TransactionsSerializer
+
 from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 import requests
 from datetime import datetime
@@ -13,10 +17,15 @@ import json
 from .models import Transactions
 from django.contrib.auth import get_user_model
 
-from payment_app.credentials import MpesaAccessToken, LipanaMpesaPassword,MpesaC2bCredential
+# from payment_app.credentials import MpesaAccessToken, LipanaMpesaPassword,MpesaC2bCredential
 
 from rest_framework.schemas import AutoSchema
+
+from django_daraja.mpesa.core import MpesaClient
 User = get_user_model()
+
+# Initialize MpesaClient once
+cl = MpesaClient()
 
 class LipaNaMpesaOnlineAPIView(APIView):
     """
@@ -37,39 +46,23 @@ class LipaNaMpesaOnlineAPIView(APIView):
         """
         Initiate STK push to customer's phone
         """
-        amount = request.data.get('amount')
-        phone = request.data.get('phone')
-        user_id = request.user
+
+        phone_number = request.data.get('phone')
+        phone_number = self.format_phone_number(phone_number)
+        amount = int(request.data.get('amount'))
+        account_reference = 'Subsription'
+        transaction_desc = 'Payment for subscription'
+
         subscription_type = request.data.get('subscription_type', 'monthly')
-
-        if not amount or not phone:
-            return Response(
-                {"message": "Amount, phone number and user ID are required",
-                 "data":[]
-                 },
-                status=status.HTTP_400_BAD_REQUEST
+        callback_url = 'https://5ab79dd35c0a.ngrok-free.app/api/v1/payment/callback'
+        response = cl.stk_push(
+            phone_number, 
+            amount, 
+            account_reference, 
+            transaction_desc, 
+            callback_url
             )
-        
-        phone = self.format_phone_number(phone)
-
-        access_token = MpesaAccessToken.validated_mpesa_access_token
-        api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
-        headers = {"Authorization": "Bearer %s" % access_token}
-        request_data = {
-            "BusinessShortCode": LipanaMpesaPassword.Business_short_code,
-            "Password": LipanaMpesaPassword.decode_password,
-            "Timestamp": LipanaMpesaPassword.lipa_time,
-            "TransactionType": "CustomerPayBillOnline",
-            "Amount": amount,
-            "PartyA": phone,
-            "PartyB": LipanaMpesaPassword.Business_short_code,
-            "PhoneNumber": phone,
-            "CallBackURL":MpesaC2bCredential.callback_url,
-            "AccountReference": "Mercy Saline",
-            "TransactionDesc": "Site Report Charges"
-        }
-
-        response = requests.post(api_url, json=request_data, headers=headers)
+    
         response_data = response.json()
         
         if response.status_code == 200:
@@ -77,8 +70,8 @@ class LipaNaMpesaOnlineAPIView(APIView):
             customer_message = response_data.get('CustomerMessage')
 
             transaction = Transactions.objects.create(
-                student=user_id,
-                phone_number=phone,
+                student=request.user,
+                phone_number=phone_number,
                 amount=amount,
                 subscription_type=subscription_type,
                 result_description= customer_message,
@@ -96,11 +89,15 @@ class LipaNaMpesaOnlineAPIView(APIView):
                 "success": False,
                 "message": 'Failed to initiate payment'
             }, status=response.status_code)
+    
         
+@method_decorator(csrf_exempt, name='dispatch')
 class MpesaCallbackAPIView(APIView):
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         try:
-            callback_data = request.data
+            raw_data = request.body.decode('utf-8')
+            
+            callback_data = json.loads(raw_data)
             print(callback_data)
 
             result_code = callback_data["Body"]["stkCallback"]["ResultCode"]
