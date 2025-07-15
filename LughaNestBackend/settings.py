@@ -35,8 +35,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://lughanest.vercel.app',
     'hhttps://lughanest-backend-apis.onrender.com',
 ]
-# Application definition
 
+# Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -249,6 +249,8 @@ MPESA_ENVIRONMENT = 'sandbox'
 MPESA_CONSUMER_KEY = config('CONSUMER_KEY')
 MPESA_CONSUMER_SECRET = config('CONSUMER_SECRET')
 MPESA_PASSKEY= config('MPESA_PASSKEY')
+
+CALLBACK_URL= config('CALLBACK_URL')
 
 #Shortcode to use for transactions. For sandbox  use the Shortcode 1 provided on test credentials page
 

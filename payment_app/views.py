@@ -50,7 +50,7 @@ class LipaNaMpesaOnlineAPIView(APIView):
         transaction_desc = 'Payment for subscription'
 
         subscription_type = request.data.get('subscription_type', 'monthly')
-        callback_url = 'https://5ab79dd35c0a.ngrok-free.app/api/v1/payment/callback'
+        callback_url = settings.CALLBACK_URL
         response = cl.stk_push(
             phone_number, 
             amount, 
