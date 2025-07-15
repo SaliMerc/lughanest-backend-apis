@@ -30,6 +30,11 @@ DEBUG = config('DEBUG_STATUS')
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com','5ab79dd35c0a.ngrok-free.app']
 
+CSRF_TRUSTED_ORIGINS = [
+    'http://127.0.0.1',
+    'https://lughanest.vercel.app',
+    'hhttps://lughanest-backend-apis.onrender.com',
+]
 # Application definition
 
 INSTALLED_APPS = [
