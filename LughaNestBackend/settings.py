@@ -231,7 +231,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-FRONTEND_HOST='http://localhost:5173'
+FRONTEND_HOST=config('FRONTEND_HOST')
 
 """MPESA SETUP"""
 # The Mpesa environment to use

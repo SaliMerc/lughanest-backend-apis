@@ -21,7 +21,6 @@ from rest_framework.schemas import AutoSchema
 from django_daraja.mpesa.core import MpesaClient
 User = get_user_model()
 
-# Initialize MpesaClient once
 cl = MpesaClient()
 
 class LipaNaMpesaOnlineAPIView(APIView):
