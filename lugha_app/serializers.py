@@ -95,7 +95,6 @@ class PartnerUserSerializer(serializers.ModelSerializer):
             student=obj
         ).select_related('course_name').order_by('-enrolment_date')
         
-        # Return the serialized data
         return [
             {
                 'course_name': course.course_name.course_name,

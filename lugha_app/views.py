@@ -847,11 +847,7 @@ class PartnerViewSet(viewsets.ViewSet):
             )
         
         # Serialize the data
-        user_serializer = PartnerUserSerializer(users_queryset, many=True)
-        course_serializer = CourseItemsSerializer(
-            Course.objects.filter(id__in=[c['min_id'] for c in languages]),
-            many=True
-        )
+        user_serializer = PartnerUserSerializer(users_queryset, many=True, context={'request': request})
         
         return Response({
             "data": user_serializer.data,
