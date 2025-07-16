@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-m0oqivi1$3o19^l$lu6gfum35n-y@(k@0t$kw_k)#px_w@&o04
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG_STATUS')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com','5ab79dd35c0a.ngrok-free.app']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com','ecc6fa43f16a.ngrok-free.app']
 
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1',
@@ -237,6 +237,22 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 FRONTEND_HOST=config('FRONTEND_HOST')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'payment_app': {  
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}
 
 """MPESA SETUP"""
 # The Mpesa environment to use

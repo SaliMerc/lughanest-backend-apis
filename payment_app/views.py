@@ -23,6 +23,7 @@ User = get_user_model()
 
 cl = MpesaClient()
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LipaNaMpesaOnlineAPIView(APIView):
     """
     Handle M-Pesa online payment processing
@@ -50,7 +51,7 @@ class LipaNaMpesaOnlineAPIView(APIView):
         transaction_desc = 'Payment for subscription'
 
         subscription_type = request.data.get('subscription_type', 'monthly')
-        callback_url = settings.CALLBACK_URL
+        callback_url = 'https://lughanest-backend-apis.onrender.com/api/v1/payment/callback/'
         response = cl.stk_push(
             phone_number, 
             amount, 

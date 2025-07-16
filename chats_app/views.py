@@ -29,7 +29,7 @@ class LatestMessagesAPIView(APIView):
             if partner.id not in conversation_partners:
                 conversation_partners.add(partner.id)
                 last_messages.append(msg)
-        serializer=MessageOverviewSerializer(last_messages, many=True)        
+        serializer=MessageOverviewSerializer(last_messages, many=True, context={'request': request})        
         return Response(
             {
                 "message":"Latest message retrieved sucessfully",
