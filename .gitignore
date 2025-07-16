@@ -2,4 +2,7 @@
 db.sqlite3
 venv
 migrations
-._pycache_
+
+__pycache__/
+*.py[cod]
+*$py.class
