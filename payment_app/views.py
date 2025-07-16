@@ -19,7 +19,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.schemas import AutoSchema
 
 from django_daraja.mpesa.core import MpesaClient
-from payment_app.signals import handle_subscription_status
+from payment_app.signals import notify_user_payment_success, notify_user_payment_failed
 User = get_user_model()
 
 cl = MpesaClient()
@@ -104,10 +104,14 @@ class MpesaCallbackAPIView(APIView):
             if result_code != 0:
                 result_description = callback_data["Body"]["stkCallback"]["ResultDesc"]
 
-                Transactions.objects.filter(checkout_id=checkout_id).update(
-                    status="failed",
-                    result_description=result_description,
-                )
+                transactions = Transactions.objects.filter(checkout_id=checkout_id)
+
+                for transaction in transactions:
+                    transaction.status = "failed"
+                    transaction.result_description = result_description
+                    transaction.save()
+
+                    notify_user_payment_failed(transaction) 
 
                 return Response({
                     "status": "failed",
@@ -129,6 +133,8 @@ class MpesaCallbackAPIView(APIView):
                 transaction.status = "completed"
                 transaction.result_description = result_description
                 transaction.save() 
+
+                notify_user_payment_success(transaction)
 
             print("process ended")
 

@@ -87,3 +87,40 @@ def notify_user_payment_success(transaction):
         recipient_list=[user.email],
         fail_silently=False
     )
+
+
+def notify_user_payment_failed(transaction):
+    """Send email to the user if their payment failed."""
+    user = transaction.student
+    if not user.email:
+        return
+
+    subject = "Payment Failed Subscription Not Activated"
+    message = f"""
+    Dear {user.last_name},
+
+    Unfortunately, your payment for the {transaction.subscription_type.title()} subscription was not successful.
+
+    ❌ Payment Details:
+    - Type: {transaction.subscription_type.title()}
+    - Amount: {transaction.amount}
+    - Phone: {transaction.phone_number}
+    - Status: {transaction.status.title()}
+    - Reason: {transaction.result_description or "Unknown"}
+
+    Since the transaction did not complete, your subscription has not been activated.
+
+    Please try again or contact support if the issue persists.
+
+    Best regards,  
+    LughaNest Team
+    """
+
+    send_mail(
+        subject=subject,
+        message=message.strip(),
+        from_email=settings.EMAIL_HOST_USER,
+        recipient_list=[user.email],
+        fail_silently=False
+    )
+
