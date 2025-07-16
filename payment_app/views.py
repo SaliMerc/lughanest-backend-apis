@@ -19,6 +19,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.schemas import AutoSchema
 
 from django_daraja.mpesa.core import MpesaClient
+from payment_app.signals import handle_subscription_status
 User = get_user_model()
 
 cl = MpesaClient()
@@ -51,7 +52,7 @@ class LipaNaMpesaOnlineAPIView(APIView):
         transaction_desc = 'Payment for subscription'
 
         subscription_type = request.data.get('subscription_type', 'monthly')
-        callback_url = 'https://lughanest-backend-apis.onrender.com/api/v1/payment/callback/'
+        callback_url = 'https://497a9ddbeb8b.ngrok-free.app/api/v1/payment/callback/'
         response = cl.stk_push(
             phone_number, 
             amount, 
@@ -119,13 +120,15 @@ class MpesaCallbackAPIView(APIView):
             phone_number = next(item["Value"] for item in body if item["Name"] == "PhoneNumber")
             amount = next(item["Value"] for item in body if item["Name"] == "Amount")
 
-            Transactions.objects.filter(checkout_id=checkout_id).update(
-                amount=amount,
-                mpesa_code=mpesa_code,
-                phone_number=phone_number,
-                status="completed",
-                result_description=result_description
-            )
+            transactions = Transactions.objects.filter(checkout_id=checkout_id)
+
+            for transaction in transactions:
+                transaction.amount = amount
+                transaction.mpesa_code = mpesa_code
+                transaction.phone_number = phone_number
+                transaction.status = "completed"
+                transaction.result_description = result_description
+                transaction.save() 
 
             print("process ended")
 

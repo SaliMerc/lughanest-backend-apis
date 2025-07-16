@@ -1,5 +1,6 @@
 from django.db import models
 from lugha_app.models import MyUser
+from django.utils import timezone
 
 class Transactions(models.Model):
     STATUS_CHOICES = [
@@ -24,7 +25,15 @@ class Transactions(models.Model):
 
     subscription_start_date=models.DateTimeField(null=True, blank=True)
     subscription_end_date=models.DateTimeField(null=True, blank=True)
-    subscription_active=models.BooleanField(default=False)
+
+    @property
+    def is_active(self):
+        now = timezone.now()
+        return (
+            self.subscription_start_date is not None and
+            self.subscription_end_date is not None and
+            self.subscription_start_date <= now < self.subscription_end_date
+        )
 
     def __str__(self):
         return f"{self.student.first_name} has paid {self.amount} for subscription {self.subscription_type}"
