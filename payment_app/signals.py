@@ -4,6 +4,9 @@ from .models import Transactions
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 
+from django.core.mail import send_mail
+from django.conf import settings
+
 @receiver(post_save, sender=Transactions)
 def handle_subscription_status(sender, instance, **kwargs):
     """
@@ -47,3 +50,40 @@ def handle_subscription_status(sender, instance, **kwargs):
         if instance.subscription_active != is_currently_active:
             instance.subscription_active = is_currently_active
             instance.save()
+    
+    notify_user_payment_success(instance)
+
+
+def notify_user_payment_success(transaction):
+    """Send confirmation email to the user about successful subscription"""
+    user = transaction.student
+    if not user.email:
+        return
+
+    subject = "Your Subscription is Confirmed!"
+    message = f"""
+    Dear {user.last_name},
+
+    Thank you for your payment. Your {transaction.subscription_type} subscription has been successfully activated.
+
+    ✅ Subscription Details:
+    - Type: {transaction.subscription_type.title()}
+    - Start Date: {transaction.subscription_start_date.strftime('%Y-%m-%d')}
+    - End Date: {transaction.subscription_end_date.strftime('%Y-%m-%d')}
+    - Status: {transaction.status.title()}
+
+    You now have full access to your subscription benefits.
+
+    If you have any questions, feel free to contact us.
+
+    Best regards,  
+    LughaNest Team
+    """
+
+    send_mail(
+        subject=subject,
+        message=message.strip(),
+        from_email=settings.EMAIL_HOST_USER,
+        recipient_list=[user.email],
+        fail_silently=False
+    )

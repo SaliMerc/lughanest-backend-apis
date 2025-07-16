@@ -60,7 +60,7 @@ class LipaNaMpesaOnlineAPIView(APIView):
             transaction_desc, 
             callback_url
             )
-    
+
         response_data = response.json()
         
         if response.status_code == 200:
