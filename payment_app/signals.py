@@ -50,35 +50,89 @@ def handle_subscription_status(sender, instance, **kwargs):
         if instance.subscription_active != is_currently_active:
             instance.subscription_active = is_currently_active
             instance.save()
+
+@receiver(post_save, sender=Transactions)
+def notify_user_payment_status(sender, instance, **kwargs):
+    """Send email to user based on transaction status (success or failed or pending)"""
+    if getattr(instance, '_email_sent', False):
+        return
+
+    instance._email_sent = True 
+
+    user = instance.student
+
+    if not user or not user.email:
+        return
+
+    if instance.status == "completed":
+        subject = "Your Subscription is Confirmed!"
+        message = f"""
+        Dear {user.last_name},
+
+        Thank you for your payment. Your {instance.subscription_type} subscription has been successfully activated.
+
+        ✅ Subscription Details:
+        - Type: {instance.subscription_type.title()}
+        - Start Date: {instance.subscription_start_date.strftime('%Y-%m-%d')}
+        - End Date: {instance.subscription_end_date.strftime('%Y-%m-%d')}
+        - Status: {instance.status.title()}
+
+        You now have full access to your subscription benefits.
+
+        If you have any questions, feel free to contact us.
+
+        Best regards,  
+        LughaNest Team
+        """
+    elif instance.status == "failed":
+        # Failed email
+        subject = "Payment Failed – Subscription Not Activated"
+        message = f"""
+        Dear {user.last_name},
+
+        Unfortunately, your payment for the {instance.subscription_type.title()} subscription was not successful.
+
+        ❌ Payment Details:
+        - Type: {instance.subscription_type.title()}
+        - Amount: {instance.amount}
+        - Phone: {instance.phone_number}
+        - Status: {instance.status.title()}
+        - Reason: {instance.result_description or "Unknown"}
+
+        Since the transaction did not complete, your subscription has not been activated.
+
+        Please try again or contact support if the issue persists.
+
+        Best regards,  
+        LughaNest Team
+        """
     
-    notify_user_payment_success(instance)
+    elif instance.status.lower() == "pending":
+        subject = "Your Payment is Being Processed"
+        message = f"""
+        Dear {user.last_name},
 
+        We have received your payment request for the {instance.subscription_type.title()} subscription.
 
-def notify_user_payment_success(transaction):
-    """Send confirmation email to the user about successful subscription"""
-    user = transaction.student
-    if not user.email:
+        ⏳ Payment Status: Pending
+
+        Your transaction is currently being processed. It may take a few moments to confirm the payment.
+
+        📄 Transaction Summary:
+        - Type: {instance.subscription_type.title()}
+        - Amount: {instance.amount}
+        - Phone: {instance.phone_number}
+        - Status: {instance.status.title()}
+
+        We will notify you once your subscription is successfully activated.
+
+        If you have any questions or did not initiate this transaction, please contact our support team immediately.
+
+        Best regards,  
+        LughaNest Team
+        """
+    else:
         return
-
-    subject = "Your Subscription is Confirmed!"
-    message = f"""
-    Dear {user.last_name},
-
-    Thank you for your payment. Your {transaction.subscription_type} subscription has been successfully activated.
-
-    ✅ Subscription Details:
-    - Type: {transaction.subscription_type.title()}
-    - Start Date: {transaction.subscription_start_date.strftime('%Y-%m-%d')}
-    - End Date: {transaction.subscription_end_date.strftime('%Y-%m-%d')}
-    - Status: {transaction.status.title()}
-
-    You now have full access to your subscription benefits.
-
-    If you have any questions, feel free to contact us.
-
-    Best regards,  
-    LughaNest Team
-    """
 
     send_mail(
         subject=subject,
@@ -87,40 +141,3 @@ def notify_user_payment_success(transaction):
         recipient_list=[user.email],
         fail_silently=False
     )
-
-
-def notify_user_payment_failed(transaction):
-    """Send email to the user if their payment failed."""
-    user = transaction.student
-    if not user.email:
-        return
-
-    subject = "Payment Failed Subscription Not Activated"
-    message = f"""
-    Dear {user.last_name},
-
-    Unfortunately, your payment for the {transaction.subscription_type.title()} subscription was not successful.
-
-    ❌ Payment Details:
-    - Type: {transaction.subscription_type.title()}
-    - Amount: {transaction.amount}
-    - Phone: {transaction.phone_number}
-    - Status: {transaction.status.title()}
-    - Reason: {transaction.result_description or "Unknown"}
-
-    Since the transaction did not complete, your subscription has not been activated.
-
-    Please try again or contact support if the issue persists.
-
-    Best regards,  
-    LughaNest Team
-    """
-
-    send_mail(
-        subject=subject,
-        message=message.strip(),
-        from_email=settings.EMAIL_HOST_USER,
-        recipient_list=[user.email],
-        fail_silently=False
-    )
-
