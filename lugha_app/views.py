@@ -3,6 +3,7 @@ import datetime
 from logging import raiseExceptions
 from urllib import request
 from django.db.models import Min, Prefetch
+from payment_app.models import Transactions
 from django.shortcuts import redirect, get_object_or_404
 from rest_framework.parsers import MultiPartParser, FormParser
 
@@ -367,14 +368,44 @@ class UserViewSet(viewsets.ViewSet):
             return Response({"message":"A user with this email does not exist."})
         user = authenticate(username=username, password=password)
         serializer=UserSerializer(user,context={'request': request})
+
         if user:
-            refresh = RefreshToken.for_user(user)
-            response= Response({
-                "message": "Logged in successfully",
-                "user": serializer.data,
-                "access_token":str(refresh.access_token),
-                "refresh": str(refresh)
-            })
+            """Get all active subscriptions for the user"""
+            now = timezone.now()
+            active_subscriptions = Transactions.objects.filter(
+                student=user,
+                status='completed',  
+                subscription_start_date__lte=now,
+                subscription_end_date__gte=now 
+            )
+            
+            """Check if user has any active subscription"""
+            has_active_subscription = active_subscriptions.exists()
+            
+            """Get subscription details (we'll take the first active one if multiple exist)"""
+            active_plan = None
+            if has_active_subscription:
+                subscription = active_subscriptions.first()
+                active_plan = {
+                    "subscription_type": subscription.subscription_type,
+                    "amount": str(subscription.amount),
+                    "start_date": subscription.subscription_start_date,
+                    "end_date": subscription.subscription_end_date
+                }
+
+        refresh = RefreshToken.for_user(user)
+        response= Response({
+            "message": "Logged in successfully",
+            "user": {
+            **serializer.data,
+            "subscription_status": {
+                "has_active_subscription": has_active_subscription,
+                "active_plan": active_plan
+            }
+        },
+            "access_token":str(refresh.access_token),
+            "refresh": str(refresh)
+        })
 
             # response.set_cookie(
             #     settings.SIMPLE_JWT['AUTH_COOKIE'],
@@ -394,7 +425,7 @@ class UserViewSet(viewsets.ViewSet):
             #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
             # )
 
-            return response
+        return response
         return Response({"message": "Wrong credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
     """For password change when the users are logged in"""

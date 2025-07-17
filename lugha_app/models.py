@@ -52,7 +52,12 @@ class LegalItem(models.Model):
 
 """"Legal the subscription plans"""
 class SubscriptionItem(models.Model):
-    currency = models.CharField(max_length=100)
+    CURRENCY_CHOICES = [
+        ('KShs.', 'KShs.'),
+        ('$', '$'),
+    ]
+
+    currency = models.CharField(max_length=20, choices=CURRENCY_CHOICES)
     monthly_plan= models.DecimalField(max_digits=10,decimal_places=2, default=0.00)
     yearly_plan = models.DecimalField(max_digits=10,decimal_places=2, default=0.00)
 

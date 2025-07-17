@@ -108,11 +108,11 @@ def notify_user_payment_status(sender, instance, **kwargs):
         """
     
     elif instance.status.lower() == "pending":
-        subject = "Your Payment is Being Processed"
+        subject = "You have initiated a payment"
         message = f"""
         Dear {user.last_name},
 
-        We have received your payment request for the {instance.subscription_type.title()} subscription.
+        We have received your payment initiation request for the {instance.subscription_type.title()} subscription.
 
         ⏳ Payment Status: Pending
 
