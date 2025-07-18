@@ -65,10 +65,52 @@ class GoogleAuthView(APIView):
                     fail_silently=True
                 )
             serializer= UserSerializer(user, context={'request': request})
+
+            if user:
+                """Get all active subscriptions for the user"""
+                now = timezone.now()
+                active_subscriptions = Transactions.objects.filter(
+                    student=user,
+                    status='completed',  
+                    subscription_start_date__lte=now,
+                    subscription_end_date__gte=now 
+                )
+                
+                """Check if user has any active subscription"""
+                has_active_subscription = active_subscriptions.exists()
+
+                if has_active_subscription:
+                    has_active_subscription ==True
+                else:
+                    has_active_subscription ==False
+                
+                """Get subscription details (we'll take the first active one if multiple exist)"""
+                if has_active_subscription:
+                    subscription = active_subscriptions.first()
+                    active_plan = {
+                        "subscription_type": subscription.subscription_type,
+                        "amount": str(subscription.amount),
+                        "start_date": subscription.subscription_start_date,
+                        "end_date": subscription.subscription_end_date
+                    }
+                else:
+                    active_plan={
+                        "subscription_type": 'None',
+                        "amount": 'None',
+                        "start_date": 'None',
+                        "end_date": 'None'
+                    }    
+
             refresh = RefreshToken.for_user(user)
             response= Response({
-                'status':"Authentication successful.",
-                "user":serializer.data,
+                "status":"Authentication successful.",
+                "user": {
+                    **serializer.data,
+                    "subscription_status": {
+                        "has_active_subscription": has_active_subscription,
+                        "active_plan": active_plan
+                    }
+            },
                 "access_token": str(refresh.access_token),
                 "refresh": str(refresh)
             })
@@ -381,9 +423,13 @@ class UserViewSet(viewsets.ViewSet):
             
             """Check if user has any active subscription"""
             has_active_subscription = active_subscriptions.exists()
+
+            if has_active_subscription:
+                has_active_subscription ==True
+            else:
+                has_active_subscription ==False
             
             """Get subscription details (we'll take the first active one if multiple exist)"""
-            active_plan = None
             if has_active_subscription:
                 subscription = active_subscriptions.first()
                 active_plan = {
@@ -392,20 +438,27 @@ class UserViewSet(viewsets.ViewSet):
                     "start_date": subscription.subscription_start_date,
                     "end_date": subscription.subscription_end_date
                 }
+            else:
+                    active_plan={
+                        "subscription_type": 'None',
+                        "amount": 'None',
+                        "start_date": 'None',
+                        "end_date": 'None'
+                    }
 
-        refresh = RefreshToken.for_user(user)
-        response= Response({
-            "message": "Logged in successfully",
-            "user": {
-            **serializer.data,
-            "subscription_status": {
-                "has_active_subscription": has_active_subscription,
-                "active_plan": active_plan
-            }
-        },
-            "access_token":str(refresh.access_token),
-            "refresh": str(refresh)
-        })
+            refresh = RefreshToken.for_user(user)
+            response= Response({
+                "message": "Logged in successfully",
+                "user": {
+                **serializer.data,
+                "subscription_status": {
+                    "has_active_subscription": has_active_subscription,
+                    "active_plan": active_plan
+                }
+            },
+                "access_token":str(refresh.access_token),
+                "refresh": str(refresh)
+            })
 
             # response.set_cookie(
             #     settings.SIMPLE_JWT['AUTH_COOKIE'],
@@ -425,7 +478,7 @@ class UserViewSet(viewsets.ViewSet):
             #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
             # )
 
-        return response
+            return response
         return Response({"message": "Wrong credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
     """For password change when the users are logged in"""
@@ -849,6 +902,7 @@ class PartnerViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['GET'], url_path='find-partners')
     def find_partners(self, request):
         # Get distinct courses for filter dropdown
+        query = request.GET.get('q')
         languages = (
             Course.objects
             .values('course_name')
@@ -856,7 +910,7 @@ class PartnerViewSet(viewsets.ViewSet):
             .order_by('course_name')
         )
         
-        # Base queryset for users
+        """Base queryset for users"""
         users_queryset = MyUser.objects.filter(
             id__in=EnrolledCourses.objects.values('student').distinct().exclude(student=request.user)
         ).prefetch_related(
@@ -867,9 +921,7 @@ class PartnerViewSet(viewsets.ViewSet):
                 to_attr='courses'
             )
         )
-        
-        # Apply search filter if query parameter exists
-        query = request.GET.get('q')
+
         if query:
             users_queryset = users_queryset.filter(
                 id__in=EnrolledCourses.objects.filter(
@@ -882,7 +934,6 @@ class PartnerViewSet(viewsets.ViewSet):
         
         return Response({
             "data": user_serializer.data,
-            "query": query or ""
         }, status=status.HTTP_200_OK)
 
 

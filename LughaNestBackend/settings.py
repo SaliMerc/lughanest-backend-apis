@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-m0oqivi1$3o19^l$lu6gfum35n-y@(k@0t$kw_k)#px_w@&o04
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG_STATUS')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com','3ebc8a178292.ngrok-free.app']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'lughanest-backend-apis.onrender.com','1bc6f995d5d3.ngrok-free.app']
 
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1',
@@ -58,6 +58,8 @@ INSTALLED_APPS = [
     'moviepy',
 
     'django_daraja',
+
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -90,6 +92,23 @@ CORS_EXPOSE_HEADERS = ['Set-Cookie']
 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 """Cors setup ends"""
+
+"""Channels setup"""
+ASGI_APPLICATION = 'LughaNestBackend.asgi.application'  
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [
+                    ('127.0.0.1', 6379),
+                    ('lughanest-backend-apis.onrender.com', 6379),
+                    ('lughanest.vercel.app',6379)
+                ]
+
+        },
+    },
+}
 
 ROOT_URLCONF = 'LughaNestBackend.urls'
 

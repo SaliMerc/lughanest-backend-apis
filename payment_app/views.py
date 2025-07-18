@@ -50,8 +50,12 @@ class LipaNaMpesaOnlineAPIView(APIView):
         account_reference = 'Subsription'
         transaction_desc = 'Payment for subscription'
 
+        user=request.user
+        student_name = f"{user.first_name} {user.last_name}"
+        student_email=user.email
+    
         subscription_type = request.data.get('subscription_type', 'monthly')
-        callback_url = 'https://lughanest-backend-apis.onrender.com/api/v1/payment/callback/'
+        callback_url = 'https://1bc6f995d5d3.ngrok-free.app/api/v1/payment/callback/'
         response = cl.stk_push(
             phone_number, 
             amount, 
@@ -68,6 +72,8 @@ class LipaNaMpesaOnlineAPIView(APIView):
 
             Transactions.objects.create(
                 student=request.user,
+                student_name=student_name,
+                student_email=student_email,
                 phone_number=phone_number,
                 amount=amount,
                 subscription_type=subscription_type,

@@ -10,7 +10,7 @@ class MessageOverviewSerializer(serializers.ModelSerializer):
         model = Message
         fields = ['id', 'sender', 'receiver', 'message_content', 'message_sent_at', 'is_read', 'sender_display_name', 'receiver_display_name', 'sender_profile_picture', 'receiver_profile_picture']
 
-    """To return first name if teh display name is null"""
+    """To return first name if the display name is null"""
     def get_sender_display_name(self, obj):
         return obj.sender.display_name or obj.sender.first_name
 

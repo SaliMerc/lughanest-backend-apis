@@ -14,6 +14,10 @@ class Transactions(models.Model):
     ]
 
     student = models.ForeignKey(MyUser, on_delete=models.CASCADE, default=1, related_name='my_student')
+    student_name=models.CharField(max_length=80, null=True, blank=True)
+    student_email=models.CharField(max_length=30, null=True, blank=True)
+
+
     phone_number=models.CharField(max_length=16)
     subscription_type=models.CharField(max_length=10, null=True, blank=True, choices=SUBSCRIPTION_CHOICES, default='monthly')
     amount=models.DecimalField(decimal_places=2, max_digits=10)
