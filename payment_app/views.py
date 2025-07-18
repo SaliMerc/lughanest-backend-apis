@@ -55,7 +55,7 @@ class LipaNaMpesaOnlineAPIView(APIView):
         student_email=user.email
     
         subscription_type = request.data.get('subscription_type', 'monthly')
-        callback_url = 'https://1bc6f995d5d3.ngrok-free.app/api/v1/payment/callback/'
+        callback_url = 'https://lughanest-backend-apis.onrender.com/api/v1/payment/callback/'
         response = cl.stk_push(
             phone_number, 
             amount, 
