@@ -27,6 +27,7 @@ class Transactions(models.Model):
     result_description=models.TextField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES,null=True, blank=True, default='pending')
 
+    payment_date=models.DateTimeField(auto_now_add=True)
     subscription_start_date=models.DateTimeField(null=True, blank=True)
     subscription_end_date=models.DateTimeField(null=True, blank=True)
 

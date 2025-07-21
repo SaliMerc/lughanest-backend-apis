@@ -44,9 +44,20 @@ class LipaNaMpesaOnlineAPIView(APIView):
         Initiate STK push to customer's phone
         """
 
+        print("Incoming Data:", request.data)
+
+
         phone_number = request.data.get('phone')
+
+        if not phone_number:
+            return Response({"message": "Phone number is required."}, status=status.HTTP_400_BAD_REQUEST)
+
         phone_number = self.format_phone_number(phone_number)
-        amount = int(request.data.get('amount'))
+        amount = request.data.get('amount')
+        try:
+            amount = int(float(amount))
+        except (ValueError, TypeError):
+            return Response({"message": "Invalid amount provided."}, status=status.HTTP_400_BAD_REQUEST)
         account_reference = 'Subsription'
         transaction_desc = 'Payment for subscription'
 
@@ -150,14 +161,14 @@ class MpesaCallbackAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-class PaymentStatusAPIView(APIView):
+class PaymentDataAPIView(APIView):
     permission_classes=[IsAuthenticated]
     """
     To retrive all the transactions made by a user
     """
     schema = AutoSchema()
     def get(self, request, *args, **kwargs):
-        transactions=Transactions.objects.filter(student=request.user)
+        transactions=Transactions.objects.filter(student=request.user).order_by('-payment_date')
         serializer=TransactionsSerializer(transactions, many=True)        
         return Response(
             {
@@ -166,3 +177,22 @@ class PaymentStatusAPIView(APIView):
             },
             status=status.HTTP_200_OK
         )
+
+
+class PaymentProcessingAPIView(APIView):
+    def get(self, request, *args, **kwargs):
+        phone = request.query_params.get('phone')
+
+        if not phone:
+            return Response({"success": False, "message": "Phone number is required."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payment = Transactions.objects.filter(phone_number=phone).latest('payment_date')
+            return Response({
+                "success": True,
+                "status": payment.status,
+                "message": f"Payment status is {payment.status}"
+            })
+        except Transactions.DoesNotExist:
+            return Response({"success": False, "status": "Pending", "message": "No payment found."})
