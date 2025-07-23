@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.utils import timezone
 
 from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated
@@ -8,6 +9,7 @@ from payment_app.serializers import TransactionsSerializer
 
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+import datetime
 
 import requests
 from datetime import datetime
@@ -65,8 +67,8 @@ class LipaNaMpesaOnlineAPIView(APIView):
         student_name = f"{user.first_name} {user.last_name}"
         student_email=user.email
     
-        subscription_type = request.data.get('subscription_type', 'monthly')
-        callback_url = 'https://lughanest-backend-apis.onrender.com/api/v1/payment/callback/'
+        subscription_type = request.data.get('subscription_type')
+        callback_url = 'https://74a60537de7f.ngrok-free.app/api/v1/payment/callback/'
         response = cl.stk_push(
             phone_number, 
             amount, 
@@ -82,7 +84,7 @@ class LipaNaMpesaOnlineAPIView(APIView):
             customer_message = response_data.get('CustomerMessage')
 
             Transactions.objects.create(
-                student=request.user,
+                student_id=request.user,
                 student_name=student_name,
                 student_email=student_email,
                 phone_number=phone_number,
@@ -180,19 +182,59 @@ class PaymentDataAPIView(APIView):
 
 
 class PaymentProcessingAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    """
+    To check if the payment made by a user has gone through
+    """
     def get(self, request, *args, **kwargs):
-        phone = request.query_params.get('phone')
-
-        if not phone:
-            return Response({"success": False, "message": "Phone number is required."},
-                            status=status.HTTP_400_BAD_REQUEST)
-
         try:
-            payment = Transactions.objects.filter(phone_number=phone).latest('payment_date')
+            payment = Transactions.objects.filter(student=request.user).order_by('-payment_date').first()
+                   
+            now = timezone.now()
+            active_subscriptions = Transactions.objects.filter(
+                student=request.user,
+                status='completed',  
+                subscription_start_date__lte=now,
+                subscription_end_date__gte=now 
+            )
+            
+            """Check if user has any active subscription"""
+            has_active_subscription = active_subscriptions.exists()
+
+            if has_active_subscription:
+                has_active_subscription ==True
+            else:
+                has_active_subscription ==False
+            
+            """Get subscription details (we'll take the first active one if multiple exist)"""
+            if has_active_subscription:
+                subscription = active_subscriptions.first()
+                active_plan = {
+                    "subscription_type": subscription.subscription_type,
+                    "amount": str(subscription.amount),
+                    "start_date": subscription.subscription_start_date,
+                    "end_date": subscription.subscription_end_date
+                }
+            else:
+                active_plan={
+                    "subscription_type": 'None',
+                    "amount": 'None',
+                    "start_date": 'None',
+                    "end_date": 'None'
+                }  
             return Response({
-                "success": True,
-                "status": payment.status,
-                "message": f"Payment status is {payment.status}"
-            })
+            "success": True,
+            "status": payment.status,
+            "message": f"Payment status is {payment.status}",
+            "has_active_subscription": has_active_subscription,
+            "active_plan": active_plan
+        })  
+
         except Transactions.DoesNotExist:
-            return Response({"success": False, "status": "Pending", "message": "No payment found."})
+            return Response({
+                "success": False,
+                "status": "pending",
+                "message": "No payment found for this user.",
+                "active_plan": active_plan
+            })
