@@ -1,21 +1,17 @@
 from rest_framework import serializers
-from payment_app.models import Transactions
+from payment_app.models import Transactions, Subscriptions
 
-class TransactionsSerializer(serializers.ModelSerializer):
+class SubscriptionsSerializer(serializers.ModelSerializer):
+    transaction_code=serializers.SerializerMethodField()
+    transaction_method=serializers.SerializerMethodField()
     class Meta:
-        model = Transactions
-        fields = '__all__'
+        model = Subscriptions
+        ['id','transaction_code','subscription_status','subscription_type', 'subscription_start_date','subscription_end_date','transaction_method']
+    
+    def get_transaction_code(self, obj):
+        return obj.transaction_id.transaction_code
+    
+    def get_transaction_method(self, obj):
+        return obj.transaction_id.payment_type
 
-    def create(self, validated_data):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            validated_data['student'] = request.user 
-
-            if not validated_data.get('incident_location'):
-                user_location = request.user.unit_number.unit_name
-                if user_location:
-                    validated_data['incident_location'] = user_location 
-                else:
-                    validated_data['incident_location'] = "Not Set"
-        return super().create(validated_data)
 

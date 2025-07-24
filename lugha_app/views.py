@@ -38,6 +38,7 @@ from django.conf import settings
 from collections import defaultdict
 
 class GoogleAuthView(APIView):
+    permission_classes=[AllowAny]
     def post(self, request):
         token = request.data.get('token')
         try:

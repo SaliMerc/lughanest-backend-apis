@@ -23,7 +23,6 @@ def handle_subscription_status(sender, instance, **kwargs):
         """Find existing active or future subscriptions of the same type"""
         existing_sub = Transactions.objects.filter(
             student=instance.student,
-            subscription_type=instance.subscription_type,
             status='completed',
             subscription_end_date__gte=now
         ).exclude(id=instance.id).order_by('-subscription_end_date').first()
