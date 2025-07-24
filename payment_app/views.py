@@ -2,21 +2,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
 
-from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from payment_app.serializers import TransactionsSerializer
+from payment_app.serializers import *
+from payment_app.models import *
 
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-import datetime
-
-import requests
-from datetime import datetime
-import base64
-from django.conf import settings
 import json
-from .models import Transactions
 from django.contrib.auth import get_user_model
 from rest_framework.schemas import AutoSchema
 
@@ -45,10 +38,6 @@ class LipaNaMpesaOnlineAPIView(APIView):
         """
         Initiate STK push to customer's phone
         """
-
-        print("Incoming Data:", request.data)
-
-
         phone_number = request.data.get('phone')
 
         if not phone_number:
@@ -68,7 +57,7 @@ class LipaNaMpesaOnlineAPIView(APIView):
         student_email=user.email
     
         subscription_type = request.data.get('subscription_type')
-        callback_url = 'https://74a60537de7f.ngrok-free.app/api/v1/payment/callback/'
+        callback_url = 'https://e6fe239aa1eb.ngrok-free.app/api/v1/payment/callback/'
         response = cl.stk_push(
             phone_number, 
             amount, 
@@ -89,10 +78,11 @@ class LipaNaMpesaOnlineAPIView(APIView):
                 student_email=student_email,
                 phone_number=phone_number,
                 amount=amount,
-                subscription_type=subscription_type,
-                result_description= customer_message,
-                checkout_id=checkout_request_id,
-                status='pending'
+                payment_subscription_type=subscription_type,
+                payment_type='MPESA',
+                transaction_result_description= customer_message,
+                transaction_reference_number=checkout_request_id,
+                transaction_status='pending'
             )
 
             return Response({
@@ -114,19 +104,18 @@ class MpesaCallbackAPIView(APIView):
             raw_data = request.body.decode('utf-8')
             
             callback_data = json.loads(raw_data)
-            print(callback_data)
-
+   
             result_code = callback_data["Body"]["stkCallback"]["ResultCode"]
             checkout_id = callback_data["Body"]["stkCallback"]["CheckoutRequestID"]
 
             if result_code != 0:
                 result_description = callback_data["Body"]["stkCallback"]["ResultDesc"]
 
-                transactions = Transactions.objects.filter(checkout_id=checkout_id)
+                transactions = Transactions.objects.filter(transaction_reference_number=checkout_id)
 
                 for transaction in transactions:
-                    transaction.status = "failed"
-                    transaction.result_description = result_description
+                    transaction.transaction_status = "failed"
+                    transaction.transaction_result_description = result_description
                     transaction.save()
 
                 return Response({
@@ -140,17 +129,15 @@ class MpesaCallbackAPIView(APIView):
             phone_number = next(item["Value"] for item in body if item["Name"] == "PhoneNumber")
             amount = next(item["Value"] for item in body if item["Name"] == "Amount")
 
-            transactions = Transactions.objects.filter(checkout_id=checkout_id)
+            transactions = Transactions.objects.filter(transaction_reference_number=checkout_id)
 
             for transaction in transactions:
                 transaction.amount = amount
-                transaction.mpesa_code = mpesa_code
+                transaction.transaction_code = mpesa_code
                 transaction.phone_number = phone_number
-                transaction.status = "completed"
-                transaction.result_description = result_description
+                transaction.transaction_status = "completed"
+                transaction.transaction_result_description = result_description
                 transaction.save() 
-
-            print("process ended")
 
             return Response({
                 "status": "success",
@@ -170,10 +157,11 @@ class PaymentDataAPIView(APIView):
     """
     schema = AutoSchema()
     def get(self, request, *args, **kwargs):
-        transactions=Transactions.objects.filter(student=request.user).order_by('-payment_date')
-        serializer=TransactionsSerializer(transactions, many=True)        
+        subscriptions=Subscriptions.objects.filter(student_id=request.user).order_by('-payment_date')
+        serializer=SubscriptionsSerializer(subscriptions, many=True)        
         return Response(
             {
+                "result_code":0,
                 "message":"Transaction retrieved sucessfully",
                 "data":serializer.data
             },
@@ -189,12 +177,14 @@ class PaymentProcessingAPIView(APIView):
     """
     def get(self, request, *args, **kwargs):
         try:
-            payment = Transactions.objects.filter(student=request.user).order_by('-payment_date').first()
+            payment = Transactions.objects.filter(student_id=request.user).order_by('-payment_date').first()
+
+            transaction_status=payment.transaction_status
                    
             now = timezone.now()
-            active_subscriptions = Transactions.objects.filter(
-                student=request.user,
-                status='completed',  
+            active_subscriptions = Subscriptions.objects.filter(
+                student_id=request.user,
+                transaction_id__transaction_status='completed',  
                 subscription_start_date__lte=now,
                 subscription_end_date__gte=now 
             )
@@ -225,8 +215,7 @@ class PaymentProcessingAPIView(APIView):
                 }  
             return Response({
             "success": True,
-            "status": payment.status,
-            "message": f"Payment status is {payment.status}",
+            "status": transaction_status,
             "has_active_subscription": has_active_subscription,
             "active_plan": active_plan
         })  

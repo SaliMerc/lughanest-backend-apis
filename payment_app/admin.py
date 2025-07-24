@@ -5,7 +5,7 @@ from payment_app.models import Transactions, Subscriptions
 @admin.register(Transactions)
 class TransactionsAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'student_id', 'student_name', 'student_email', 'phone_number',
+        'id', 'student_id','payment_type', 'student_name', 'student_email', 'phone_number',
         'amount', 'transaction_status', 'payment_date'
     )
     list_filter = ('transaction_status', 'payment_date')
