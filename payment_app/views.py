@@ -78,7 +78,7 @@ class LipaNaMpesaOnlineAPIView(APIView):
                 student_email=student_email,
                 phone_number=phone_number,
                 amount=amount,
-                payment_subscription_type=subscription_type,
+                transaction_subscription_type=subscription_type,
                 payment_type='MPESA',
                 transaction_result_description= customer_message,
                 transaction_reference_number=checkout_request_id,
@@ -157,7 +157,8 @@ class PaymentDataAPIView(APIView):
     """
     schema = AutoSchema()
     def get(self, request, *args, **kwargs):
-        subscriptions=Subscriptions.objects.filter(student_id=request.user).order_by('-payment_date')
+        subscriptions=Subscriptions.objects.filter(student_id=request.user).select_related('student_id', 'transaction_id').order_by('-subscription_date')
+
         serializer=SubscriptionsSerializer(subscriptions, many=True)        
         return Response(
             {
@@ -177,7 +178,7 @@ class PaymentProcessingAPIView(APIView):
     """
     def get(self, request, *args, **kwargs):
         try:
-            payment = Transactions.objects.filter(student_id=request.user).order_by('-payment_date').first()
+            payment = Transactions.objects.filter(student_id=request.user).select_related('student_id').order_by('-transaction_date').first()
 
             transaction_status=payment.transaction_status
                    
@@ -202,14 +203,12 @@ class PaymentProcessingAPIView(APIView):
                 subscription = active_subscriptions.first()
                 active_plan = {
                     "subscription_type": subscription.subscription_type,
-                    "amount": str(subscription.amount),
                     "start_date": subscription.subscription_start_date,
                     "end_date": subscription.subscription_end_date
                 }
             else:
                 active_plan={
                     "subscription_type": 'None',
-                    "amount": 'None',
                     "start_date": 'None',
                     "end_date": 'None'
                 }  

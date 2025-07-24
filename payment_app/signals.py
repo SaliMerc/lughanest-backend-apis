@@ -1,6 +1,6 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Transactions
+from .models import Transactions, Subscriptions
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 
@@ -13,42 +13,40 @@ def handle_subscription_status(sender, instance, **kwargs):
     Signal to handle all subscription calculations and status updates.
     If user already has an active subscription, carry forward the new one.
     """
-    if instance.status != 'completed':
+    if instance.transaction_status != 'completed':
         return
+    
+    subscription, subscription_created=Subscriptions.objects.get_or_create(
+        transaction_id=instance,
+        student_id=instance.student_id,
+        student_name=instance.student_name,
+        subscription_type=instance.transaction_subscription_type
+    )
 
     """If not already initialized"""
-    if not instance.subscription_start_date:
+    if subscription_created or not subscription.subscription_start_date:
         now = timezone.now()
 
         """Find existing active or future subscriptions of the same type"""
-        existing_sub = Transactions.objects.filter(
-            student=instance.student,
-            status='completed',
+        existing_subscription = Subscriptions.objects.filter(
+            student_id=instance.student_id,
+            transaction_id__transaction_status='completed',
             subscription_end_date__gte=now
-        ).exclude(id=instance.id).order_by('-subscription_end_date').first()
+        ).exclude(id=subscription.id).order_by('-subscription_end_date').first()
 
         """Start after current active subscription if it exists"""
-        if existing_sub:
-            instance.subscription_start_date = existing_sub.subscription_end_date
+        if existing_subscription:
+            subscription.subscription_start_date = existing_subscription.subscription_end_date
         else:
-            instance.subscription_start_date = now
+            subscription.subscription_start_date = now
 
         """Calculate end date"""
-        if instance.subscription_type == 'monthly':
-            instance.subscription_end_date = instance.subscription_start_date + relativedelta(months=1)
-        elif instance.subscription_type == 'yearly':
-            instance.subscription_end_date = instance.subscription_start_date + relativedelta(years=1)
-
-        """Check if it's active now"""
-        instance.subscription_active = instance.subscription_start_date <= now < instance.subscription_end_date
-        instance.save()
-    else:
-        """Check if current subscription is active"""
-        now = timezone.now()
-        is_currently_active = instance.subscription_end_date and instance.subscription_end_date > now
-        if instance.subscription_active != is_currently_active:
-            instance.subscription_active = is_currently_active
-            instance.save()
+        if subscription.subscription_type == 'monthly':
+            subscription.subscription_end_date = subscription.subscription_start_date + relativedelta(months=1)
+        elif subscription.subscription_type == 'yearly':
+            subscription.subscription_end_date = subscription.subscription_start_date + relativedelta(years=1)
+    subscription.subscription_status = 'active'
+    subscription.save()
 
 @receiver(post_save, sender=Transactions)
 def notify_user_payment_status(sender, instance, **kwargs):
@@ -58,23 +56,28 @@ def notify_user_payment_status(sender, instance, **kwargs):
 
     instance._email_sent = True 
 
-    user = instance.student
+    user = instance.student_id
 
     if not user or not user.email:
         return
-
-    if instance.status == "completed":
+    
+    if instance.transaction_status == "completed":
+        subscription=Subscriptions.objects.get(
+        transaction_id=instance,
+        student_id=instance.student_id
+    )
+         
         subject = "Your Subscription is Confirmed!"
         message = f"""
         Dear {user.last_name},
 
-        Thank you for your payment. Your {instance.subscription_type} subscription has been successfully activated.
+        Thank you for your payment. Your {instance.transaction_subscription_type.title()} subscription has been successfully activated.
 
         ✅ Subscription Details:
-        - Type: {instance.subscription_type.title()}
-        - Start Date: {instance.subscription_start_date.strftime('%Y-%m-%d')}
-        - End Date: {instance.subscription_end_date.strftime('%Y-%m-%d')}
-        - Status: {instance.status.title()}
+        - Type: {instance.transaction_subscription_type.title()}
+        - Start Date: {subscription.subscription_start_date.strftime('%Y-%m-%d')}
+        - End Date: {subscription.subscription_end_date.strftime('%Y-%m-%d')}
+        - Payment Status: {instance.transaction_status.title()}
 
         You now have full access to your subscription benefits.
 
@@ -83,20 +86,20 @@ def notify_user_payment_status(sender, instance, **kwargs):
         Best regards,  
         LughaNest Team
         """
-    elif instance.status == "failed":
+    elif instance.transaction_status == "failed":
         # Failed email
         subject = "Payment Failed – Subscription Not Activated"
         message = f"""
         Dear {user.last_name},
 
-        Unfortunately, your payment for the {instance.subscription_type.title()} subscription was not successful.
+        Unfortunately, your payment for the {instance.transaction_subscription_type.title()} subscription was not successful.
 
         ❌ Payment Details:
-        - Type: {instance.subscription_type.title()}
+        - Type: {instance.transaction_subscription_type.title()}
         - Amount: {instance.amount}
         - Phone: {instance.phone_number}
-        - Status: {instance.status.title()}
-        - Reason: {instance.result_description or "Unknown"}
+        - Payment Status: {instance.transaction_status.title()}
+        - Reason: {instance.transaction_result_description or "Unknown"}
 
         Since the transaction did not complete, your subscription has not been activated.
 
@@ -106,22 +109,22 @@ def notify_user_payment_status(sender, instance, **kwargs):
         LughaNest Team
         """
     
-    elif instance.status.lower() == "pending":
+    elif instance.transaction_status.lower() == "pending":
         subject = "You have initiated a payment"
         message = f"""
         Dear {user.last_name},
 
-        We have received your payment initiation request for the {instance.subscription_type.title()} subscription.
+        We have received your payment initiation request for the {instance.transaction_subscription_type.title()} subscription.
 
         ⏳ Payment Status: Pending
 
         Your transaction is currently being processed. It may take a few moments to confirm the payment.
 
         📄 Transaction Summary:
-        - Type: {instance.subscription_type.title()}
+        - Type: {instance.transaction_subscription_type.title()}
         - Amount: {instance.amount}
         - Phone: {instance.phone_number}
-        - Status: {instance.status.title()}
+        - Status: {instance.transaction_status.title()}
 
         We will notify you once your subscription is successfully activated.
 

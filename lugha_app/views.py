@@ -3,7 +3,7 @@ import datetime
 from logging import raiseExceptions
 from urllib import request
 from django.db.models import Min, Prefetch
-from payment_app.models import Transactions
+from payment_app.models import Transactions, Subscriptions
 from django.shortcuts import redirect, get_object_or_404
 from rest_framework.parsers import MultiPartParser, FormParser
 
@@ -70,12 +70,12 @@ class GoogleAuthView(APIView):
             if user:
                 """Get all active subscriptions for the user"""
                 now = timezone.now()
-                active_subscriptions = Transactions.objects.filter(
-                    student=user,
-                    status='completed',  
-                    subscription_start_date__lte=now,
-                    subscription_end_date__gte=now 
-                )
+                active_subscriptions = Subscriptions.objects.filter(
+                student_id=user,
+                transaction_id__transaction_status='completed',  
+                subscription_start_date__lte=now,
+                subscription_end_date__gte=now 
+            )
                 
                 """Check if user has any active subscription"""
                 has_active_subscription = active_subscriptions.exists()
@@ -90,14 +90,12 @@ class GoogleAuthView(APIView):
                     subscription = active_subscriptions.first()
                     active_plan = {
                         "subscription_type": subscription.subscription_type,
-                        "amount": str(subscription.amount),
                         "start_date": subscription.subscription_start_date,
                         "end_date": subscription.subscription_end_date
                     }
                 else:
                     active_plan={
                         "subscription_type": 'None',
-                        "amount": 'None',
                         "start_date": 'None',
                         "end_date": 'None'
                     }    
@@ -415,9 +413,9 @@ class UserViewSet(viewsets.ViewSet):
         if user:
             """Get all active subscriptions for the user"""
             now = timezone.now()
-            active_subscriptions = Transactions.objects.filter(
-                student=user,
-                status='completed',  
+            active_subscriptions = Subscriptions.objects.filter(
+                student_id=user,
+                transaction_id__transaction_status='completed',  
                 subscription_start_date__lte=now,
                 subscription_end_date__gte=now 
             )
@@ -435,14 +433,12 @@ class UserViewSet(viewsets.ViewSet):
                 subscription = active_subscriptions.first()
                 active_plan = {
                     "subscription_type": subscription.subscription_type,
-                    "amount": str(subscription.amount),
                     "start_date": subscription.subscription_start_date,
                     "end_date": subscription.subscription_end_date
                 }
             else:
                     active_plan={
                         "subscription_type": 'None',
-                        "amount": 'None',
                         "start_date": 'None',
                         "end_date": 'None'
                     }

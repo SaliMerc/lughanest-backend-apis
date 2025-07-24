@@ -6,9 +6,9 @@ from payment_app.models import Transactions, Subscriptions
 class TransactionsAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'student_id','payment_type', 'student_name', 'student_email', 'phone_number',
-        'amount', 'transaction_status', 'payment_date'
+        'amount', 'transaction_status', 'transaction_date'
     )
-    list_filter = ('transaction_status', 'payment_date')
+    list_filter = ('transaction_status', 'transaction_date')
     search_fields = (
         'student_id__username', 'student_name', 'student_email',
         'transaction_code', 'transaction_reference_number', 'phone_number'
@@ -18,7 +18,7 @@ class TransactionsAdmin(admin.ModelAdmin):
 class SubscriptionsAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'student_name', 'subscription_type', 'subscription_status',
-        'subscription_start_date', 'subscription_end_date', 'transaction_id'
+        'subscription_start_date', 'subscription_end_date', 'transaction_id','subscription_date'
     )
     list_filter = ('subscription_type', 'subscription_status', 'subscription_start_date')
     search_fields = (
