@@ -15,6 +15,8 @@ import os
 
 from decouple import config
 
+from celery.schedules import crontab 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -31,7 +33,7 @@ DEBUG = config('DEBUG_STATUS')
 ALLOWED_HOSTS = ['localhost', 
                  '127.0.0.1', 
                  'lughanest-backend-apis.onrender.com',
-                 'e6fe239aa1eb.ngrok-free.app'
+                 '90384b7f5ffc.ngrok-free.app'
                  ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -64,6 +66,9 @@ INSTALLED_APPS = [
     'django_daraja',
 
     'channels',
+
+    'django_crontab',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -79,6 +84,26 @@ MIDDLEWARE = [
     'silk.middleware.SilkyMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
+
+
+"""Celery set up"""
+CELERY_BROKER_URL = config('CELERY_BROKER_URL')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_BACKEND =  config('CELERY_RESULT_BACKEND')
+CELERY_TIMEZONE = 'UTC'
+
+CELERY_BEAT_SCHEDULE = {
+    'inactivate_subscriptions': {
+        'task': 'subscriptions.tasks.my_subscription_inactivation_cron_job',
+        'schedule': crontab(minute=0, hour='*'),
+    },
+
+    'delete-scheduled-users-every-midnight': {
+        'task': 'subscriptions.tasks.delete_scheduled_users',
+        'schedule': crontab(minute=0, hour=0),  
+    },
+}
 
 """Cors set up"""
 CORS_ALLOWED_ORIGINS = [
@@ -316,7 +341,7 @@ MPESA_PASSKEY = config('MPESA_PASSKEY')
 
 # Username for initiator (to be used in B2C, B2B, AccountBalance and TransactionStatusQuery Transactions)
 
-MPESA_INITIATOR_USERNAME = 'initiator_username'
+MPESA_INITIATOR_USERNAME = 'LughaNest'
 
 # Plaintext password for initiator (to be used in B2C, B2B, AccountBalance and TransactionStatusQuery Transactions)
 

@@ -99,7 +99,7 @@ def notify_user_payment_status(sender, instance, **kwargs):
         - Amount: {instance.amount}
         - Phone: {instance.phone_number}
         - Payment Status: {instance.transaction_status.title()}
-        - Reason: {instance.transaction_result_description or "Unknown"}
+        - Reference Number: {instance.transaction_reference_number}
 
         Since the transaction did not complete, your subscription has not been activated.
 
@@ -125,6 +125,7 @@ def notify_user_payment_status(sender, instance, **kwargs):
         - Amount: {instance.amount}
         - Phone: {instance.phone_number}
         - Status: {instance.transaction_status.title()}
+        - Reference Number: {instance.transaction_reference_number}
 
         We will notify you once your subscription is successfully activated.
 

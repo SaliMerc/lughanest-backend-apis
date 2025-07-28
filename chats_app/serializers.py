@@ -28,3 +28,10 @@ class MessageOverviewSerializer(serializers.ModelSerializer):
         if obj.receiver.profile_picture and request:
             return request.build_absolute_uri(obj.receiver.profile_picture.url)
         return None
+
+
+class SendMessageSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Message
+        fields = ['id', 'sender', 'receiver', 'message_content', 'message_sent_at', 'is_read']
