@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.schemas import AutoSchema
 
 from django_daraja.mpesa.core import MpesaClient
+from django.conf import settings
 User = get_user_model()
 
 cl = MpesaClient()
@@ -45,19 +46,19 @@ class LipaNaMpesaOnlineAPIView(APIView):
 
         phone_number = self.format_phone_number(phone_number)
         amount = request.data.get('amount')
+        subscription_type = request.data.get('subscription_type')
         try:
             amount = int(float(amount))
         except (ValueError, TypeError):
             return Response({"message": "Invalid amount provided."}, status=status.HTTP_400_BAD_REQUEST)
-        account_reference = 'Subsription'
-        transaction_desc = 'Payment for subscription'
+        account_reference = 'LughaNest'
+        transaction_desc = f'Subscription for plan {subscription_type} plan'
 
         user=request.user
         student_name = f"{user.first_name} {user.last_name}"
         student_email=user.email
     
-        subscription_type = request.data.get('subscription_type')
-        callback_url = 'https://e6fe239aa1eb.ngrok-free.app/api/v1/payment/callback/'
+        callback_url = settings.CALLBACK_URL    
         response = cl.stk_push(
             phone_number, 
             amount, 
@@ -180,8 +181,6 @@ class PaymentProcessingAPIView(APIView):
         try:
             payment = Transactions.objects.filter(student_id=request.user).select_related('student_id').order_by('-transaction_date').first()
 
-            transaction_status=payment.transaction_status
-                   
             now = timezone.now()
             active_subscriptions = Subscriptions.objects.filter(
                 student_id=request.user,
@@ -214,7 +213,8 @@ class PaymentProcessingAPIView(APIView):
                 }  
             return Response({
             "success": True,
-            "status": transaction_status,
+            "status": payment.transaction_status,
+            "amount": payment.amount,
             "has_active_subscription": has_active_subscription,
             "active_plan": active_plan
         })  

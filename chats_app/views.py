@@ -6,6 +6,7 @@ from chats_app.serializers import *
 from chats_app.models import Message
 from rest_framework.schemas import AutoSchema
 from django.db.models import Q
+from lugha_app.models import MyUser
 
 class LatestMessagesAPIView(APIView):
     permission_classes=[IsAuthenticated]
@@ -37,3 +38,61 @@ class LatestMessagesAPIView(APIView):
             },
             status=status.HTTP_200_OK
         )
+    
+class GetMessagesAPIView(APIView):
+    permission_classes=[IsAuthenticated]
+    
+    """
+    To retrive all the messages sent or received by the user
+    """
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        partner_id = request.query_params.get('partner_id')  
+        
+        if not partner_id:
+            return Response(
+                {"message": "partner_id parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            partner = MyUser.objects.get(id=partner_id)
+        except MyUser.DoesNotExist:
+            return Response(
+                {"message": "Partner user not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        messages = Message.objects.filter(
+            (Q(sender=user) & Q(receiver=partner) |
+            (Q(sender=partner) & Q(receiver=user))
+        )).select_related('sender', 'receiver').order_by('message_sent_at')
+        
+        serializer = MessageOverviewSerializer(messages, many=True)
+        
+        return Response({
+            "result_code": 0,
+            "message": "Messages retrieved successfully",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+    
+class SendMessagesAPIView(APIView):
+    permission_classes=[IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = SendMessageSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()  
+            return Response({
+                'result_code':0,
+                'message': 'Message created successfully',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED)
+        return Response({
+                'result_code':1,
+                'message': 'The message could not be created',
+                'data': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+
