@@ -677,7 +677,7 @@ class UserViewSet(viewsets.ViewSet):
                 }, status=status.HTTP_200_OK)
 
     """To allow the users to reverse the account deletion"""
-    @action(detail=False, methods=['POST'], url_path='undo-account-deletion')
+    @action(detail=False, methods=['PATCH'], url_path='undo-account-deletion')
     def undo_account_deletion(self, request):
         user = request.user
         user.scheduled_deletion_date = None

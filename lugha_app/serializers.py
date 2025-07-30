@@ -69,7 +69,7 @@ class EnrollCourseItemsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.EnrolledCourses
-        fields = ['id', 'course_name_id','course_name', 'course_level','enrolment_date', 'is_enrolled', 'is_completed','completion_date']
+        fields = ['id', 'course_name_id','course_name', 'course_level','enrolment_date', 'is_enrolled', 'is_completed','completion_date','course_progress']
 
     def create(self,validated_data):
         validated_data['student'] = self.context['request'].user
