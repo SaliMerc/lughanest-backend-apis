@@ -1,4 +1,5 @@
 import random
+import string
 import datetime
 from logging import raiseExceptions
 from urllib import request
@@ -22,6 +23,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken,TokenError
 
 from django.db import transaction
+from .utils import has_active_subscription
 
 import jwt
 
@@ -49,9 +51,15 @@ class GoogleAuthView(APIView):
             first_name = idinfo.get('given_name', '')
             last_name = idinfo.get('family_name', '')
             profile_picture=idinfo.get('picture','')
+
+            def generate_display_name(last_name, length=6):
+                suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
+                return f"{last_name}_{suffix}"
+            
+            display_name = generate_display_name(last_name)
             user, created = MyUser.objects.get_or_create(email=email,
                                                    defaults={'username': email, 'first_name': first_name,
-                                                             'last_name': last_name, 'display_name':email,'profile_picture':profile_picture,'accepted_terms_and_conditions':True}
+                                                             'last_name': last_name, 'display_name':display_name,'profile_picture':profile_picture,'accepted_terms_and_conditions':True}
                                                    )
             if not created:
                 user.last_login = datetime.datetime.now()
@@ -649,10 +657,10 @@ class UserViewSet(viewsets.ViewSet):
         }, status=status.HTTP_200_OK)
 
     """To allow the users to delete their accounts"""
-    @action(detail=False, methods=['DELETE','GET'], url_path='delete-account')
+    @action(detail=False, methods=['POST','GET'], url_path='delete-account')
     def delete_account(self,request):
         user = request.user        
-        if request.method == 'DELETE':
+        if request.method == 'POST':
             user.scheduled_deletion_date = timezone.now() + timedelta(days=7)
             user.save()
             return Response(
@@ -770,11 +778,15 @@ class CourseItemsViewSet(viewsets.ViewSet):
         course_name = serializer.validated_data['course_name']
         course_level = serializer.validated_data['course_level']
 
-        already_enrolled = models.EnrolledCourses.objects.filter(
+        already_enrolled = EnrolledCourses.objects.filter(
             student=student,
             course_name=course_name,
             course_level=course_level
         ).exists()
+
+        enrolled_courses_count = EnrolledCourses.objects.filter(
+            student=student
+        ).count()
 
         if already_enrolled:
             return Response(
@@ -782,8 +794,13 @@ class CourseItemsViewSet(viewsets.ViewSet):
                 status=status.HTTP_200_OK
             )
 
-        serializer.save()
-        return Response({"message":"You have successfully enrolled in this course"}, status=status.HTTP_201_CREATED)
+        if student:     
+            """The student cannot enroll in more than one course when they do not have an active subscription"""
+            if not has_active_subscription(student) and enrolled_courses_count > 1:
+                return Response({"message":"You cannot enroll in more than one course without a subscription"}, status=status.HTTP_201_CREATED)
+
+            serializer.save()
+            return Response({"message":"You have successfully enrolled in this course"}, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['GET'], url_path='ongoing-and-completed-courses')
     def ongoing_and_completed_courses(self, request):
