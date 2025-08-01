@@ -33,7 +33,7 @@ DEBUG = config('DEBUG_STATUS')
 ALLOWED_HOSTS = ['localhost', 
                  '127.0.0.1', 
                  'lughanest-backend-apis.onrender.com',
-                 '90384b7f5ffc.ngrok-free.app'
+                 '9cd09713c0ae.ngrok-free.app'
                  ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -100,7 +100,7 @@ CELERY_BEAT_SCHEDULE = {
     },
 
     'delete-scheduled-users-every-midnight': {
-        'task': 'subscriptions.tasks.delete_scheduled_users',
+        'task': 'subscriptions.tasks.delete_scheduled_users_cron_job',
         'schedule': crontab(minute=0, hour=0),  
     },
 }

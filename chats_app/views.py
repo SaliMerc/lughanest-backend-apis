@@ -8,6 +8,8 @@ from rest_framework.schemas import AutoSchema
 from django.db.models import Q
 from lugha_app.models import MyUser
 
+from lugha_app.utils import has_active_subscription
+
 class LatestMessagesAPIView(APIView):
     permission_classes=[IsAuthenticated]
     """
@@ -81,8 +83,14 @@ class SendMessagesAPIView(APIView):
     permission_classes=[IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
+        student=request.user
         serializer = SendMessageSerializer(data=request.data)
         if serializer.is_valid():
+            if not has_active_subscription(student):
+                return Response({
+                'result_code':1,
+                'message': 'Sorrry, you cannot send a message unless your are subscribed to a plan'
+            }, status=status.HTTP_400_BAD_REQUEST)
             serializer.save()  
             return Response({
                 'result_code':0,

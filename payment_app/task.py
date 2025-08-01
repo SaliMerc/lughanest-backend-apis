@@ -16,7 +16,7 @@ def my_subscription_inactivation_cron_job():
     print(f"{count} subscriptions were inactivated.")
 
 @shared_task
-def delete_scheduled_users():
+def delete_scheduled_users_cron_job():
     now = timezone.now()
     users_to_delete = MyUser.objects.filter(scheduled_deletion_date__lte=now)
     count = users_to_delete.count()
