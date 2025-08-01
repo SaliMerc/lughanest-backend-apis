@@ -100,7 +100,7 @@ CELERY_BEAT_SCHEDULE = {
     },
 
     'delete-scheduled-users-every-midnight': {
-        'task': 'subscriptions.tasks.delete_scheduled_users',
+        'task': 'subscriptions.tasks.delete_scheduled_users_cron_job',
         'schedule': crontab(minute=0, hour=0),  
     },
 }
