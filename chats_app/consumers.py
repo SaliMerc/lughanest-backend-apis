@@ -50,7 +50,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
-            print(data)
             message_type = data.get('type')
 
             if message_type == 'chat_message':
@@ -73,8 +72,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message_content=message_content
         )
 
-        receiver_details = await self.get_user_details(receiver)
-
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -92,10 +89,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_send(
             self.room_group_name,
             {
-                'type': 'typing',
+                'type': 'chat_typing',
                 'sender': self.user.id,
                 'sender_name': self.user_details['display_name'],
-                'is_typing': data['is_typing']
+                'is_typing': data['is_typing'],
+                'receiver': data['receiver']
             }
         )
 
@@ -110,13 +108,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'is_read': event['is_read']
         }))
 
-    async def typing_indicator(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'typing',
-            'sender': event['sender'],
-            'sender_name': event['sender_name'],
-            'is_typing': event['is_typing']
-        }))
+    async def chat_typing(self, event):
+        if self.scope['user'].id == event['receiver']:
+            await self.send(text_data=json.dumps({
+                'type': 'typing',
+                'sender': event['sender'],
+                'sender_name': event['sender_name'],
+                'is_typing': event['is_typing'],
+                'receiver': event['receiver']
+            }))
 
     @database_sync_to_async
     def get_user(self, user_id):
