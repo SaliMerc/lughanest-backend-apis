@@ -15,7 +15,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         params = parse_qs(query_string)
         token = params.get('token', [None])[0]
 
-        print(token)
         if not token:
             await self.close(code=4002)
             return
@@ -51,6 +50,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
+            print(data)
             message_type = data.get('type')
 
             if message_type == 'chat_message':
@@ -65,31 +65,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def handle_chat_message(self, data):
         message_content = data['message_content']
-        receiver_id = data['receiver_id']
+        receiver = data['receiver']
 
-        # Save message to database
         message_obj = await self.save_message(
-            sender_id=self.user.id,
-            receiver_id=receiver_id,
-            content=message_content
+            sender=self.user.id,
+            receiver=receiver,
+            message_content=message_content
         )
 
-        receiver_details = await self.get_user_details(receiver_id)
+        receiver_details = await self.get_user_details(receiver)
 
-          # Broadcast to the room
         await self.channel_layer.group_send(
             self.room_group_name,
             {
                 'type': 'chat_message',
                 'id': message_obj.id,
-                'sender': {
-                    'id': self.user.id,
-                    'display_name': await self.get_user_display_name(self.user.id)
-                },
-                'receiver': {
-                    'id': receiver_id,
-                    'display_name': await self.get_user_display_name(receiver_id)
-                },
+                'sender': self.user.id,
+                'receiver': receiver,
                 'message_content': message_content,
                 'message_sent_at': message_obj.message_sent_at.isoformat(),
                 'is_read': message_obj.is_read
@@ -101,7 +93,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.room_group_name,
             {
                 'type': 'typing',
-                'sender_id': self.user.id,
+                'sender': self.user.id,
                 'sender_name': self.user_details['display_name'],
                 'is_typing': data['is_typing']
             }
@@ -109,7 +101,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
-            'type': 'message',
+            'type': 'chat_message',
             'id': event['id'],
             'message_content': event['message_content'],
             'sender': event['sender'],
@@ -121,7 +113,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def typing_indicator(self, event):
         await self.send(text_data=json.dumps({
             'type': 'typing',
-            'sender_id': event['sender_id'],
+            'sender': event['sender'],
             'sender_name': event['sender_name'],
             'is_typing': event['is_typing']
         }))
@@ -142,10 +134,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }
 
     @database_sync_to_async
-    def save_message(self, sender, receiver_id, content):
-        receiver = User.objects.get(id=receiver_id) 
+    def save_message(self, sender, receiver, message_content):
+        sender = User.objects.get(id=sender)
+        receiver = User.objects.get(id=receiver)
         return Message.objects.create(
             sender=sender,       
             receiver=receiver,   
-            message_content=content
+            message_content=message_content
         )
