@@ -8,6 +8,10 @@ from payment_app.models import Transactions, Subscriptions
 from django.shortcuts import redirect, get_object_or_404
 from rest_framework.parsers import MultiPartParser, FormParser
 
+from django.core.cache import cache
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+
 from django.contrib.auth import authenticate, update_session_auth_hash
 from django.contrib.auth.handlers.modwsgi import check_password
 from django.contrib.auth.tokens import default_token_generator
@@ -722,10 +726,17 @@ class BlogViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
     @action(detail=False, methods=['GET'], url_path='all-blog-items')
     def all_blog_items(self, request):
+        if (cached := cache.get("all_blogs")) is not None:
+            return Response(cached, status=status.HTTP_200_OK)
+      
         blogs=Blog.objects.order_by('-created_at')
         serializer = BlogSerializer(blogs, many=True, context={'request': request})
+        cache.set("all_blogs", serializer.data, 1800) 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+@receiver([post_save, post_delete], sender=Blog)
+def clear_blog_cache(**kwargs):
+    cache.delete("all_blogs")
 """For retrieving the privacy policy and the terms and conditions"""
 class LegalItemsViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
@@ -743,8 +754,12 @@ class CourseItemsViewSet(viewsets.ViewSet):
         return [IsAuthenticated()]
     @action(detail=False, methods=['GET'], url_path='available-courses')
     def course_items(self,request):
+        if (cached := cache.get("all_course")) is not None:
+            return Response(cached, status=status.HTTP_200_OK)
+        
         available_courses = Course.objects.all()
         serializer = CourseItemsSerializer(available_courses, many=True)
+        cache.set("all_course", serializer.data, 1800) 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['GET'], url_path='structured-available-courses')
