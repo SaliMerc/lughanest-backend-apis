@@ -16,6 +16,9 @@ import os
 from decouple import config
 
 from celery.schedules import crontab 
+from django.conf import settings
+
+import re 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,7 +36,7 @@ DEBUG = config('DEBUG_STATUS')
 ALLOWED_HOSTS = ['localhost', 
                  '127.0.0.1', 
                  'lughanest-backend-apis.onrender.com',
-                 '9cd09713c0ae.ngrok-free.app'
+                 '355b49a42c0a.ngrok-free.app'
                  ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -44,6 +47,9 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne',
+    'channels',
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -64,8 +70,6 @@ INSTALLED_APPS = [
     'moviepy',
 
     'django_daraja',
-
-    'channels',
 
     'django_crontab',
     'django_celery_beat',
@@ -105,6 +109,42 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+
+"""Redis caching set up"""
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "KEY_PREFIX": "lugha_app"  
+    },
+    "chats_app": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/2",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "SOCKET_CONNECT_TIMEOUT": 5,  
+            "SOCKET_TIMEOUT": 5,  
+        },
+        "KEY_PREFIX": "chats_app"  
+    },
+    "payment_app": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/3",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
+        },
+        "KEY_PREFIX": "payment_app"
+    }
+}
+
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
+
+
 """Cors set up"""
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -125,19 +165,16 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 """Channels setup"""
 ASGI_APPLICATION = 'LughaNestBackend.asgi.application'  
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [
-                    ('127.0.0.1', 6379),
-                    ('lughanest-backend-apis.onrender.com', 6379),
-                    ('lughanest.vercel.app',6379)
-                ]
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.pubsub.RedisPubSubChannelLayer",  
+        "CONFIG": {
+            "hosts": [("localhost", 6379)],
         },
     },
 }
+
 
 ROOT_URLCONF = 'LughaNestBackend.urls'
 
