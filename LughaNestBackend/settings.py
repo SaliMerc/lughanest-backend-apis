@@ -168,13 +168,24 @@ ASGI_APPLICATION = 'LughaNestBackend.asgi.application'
 
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels_redis.pubsub.RedisChannelLayer",  
+        "BACKEND": "channels_redis.core.RedisChannelLayer",   
         "CONFIG": {
             "hosts": [("localhost", 6379)],
+            "symmetric_encryption_keys": [SECRET_KEY[:32]], 
+            "channel_capacity": {
+                "http.request": 200,  
+                "http.response*": 100,
+                re.compile(r"^user_\d+"): 50,    
+                re.compile(r"^chat_\d+_\d+"): 100, 
+            },
+            "connection_kwargs": {
+                "socket_keepalive": True,
+                "socket_connect_timeout": 5,
+                "retry_on_timeout": True,
+            },
         },
-    },
+    }
 }
-
 
 ROOT_URLCONF = 'LughaNestBackend.urls'
 
