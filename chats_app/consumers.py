@@ -6,6 +6,7 @@ from urllib.parse import parse_qs
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from chats_app.models import Message
+from django.db.models import Q
 
 User = get_user_model()
 
@@ -31,6 +32,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close(code=4001)
             return
 
+        room_name_parts = self.scope['url_route']['kwargs']['room_name'].split('_')
+        
+        if str(self.user.id) == room_name_parts[0]:
+            self.receiver_id = room_name_parts[1]
+            self.user_id = room_name_parts[0]
+        else:
+            self.receiver_id = room_name_parts[0]
+            self.user_id = room_name_parts[1]
+
         self.room_name = self.scope['url_route']['kwargs']['room_name']
         self.room_group_name = f'chat_{self.room_name}'
 
@@ -40,6 +50,41 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
         await self.accept()
 
+        await self.send_message_history()
+
+    async def send_message_history(self):
+        messages = await self.get_messages(self.user_id, self.receiver_id)
+        await self.send(text_data=json.dumps({
+            'type': 'message_history',
+            'messages': messages
+        }))
+
+    @database_sync_to_async
+    def get_messages(self, user_id, receiver_id):
+        try:
+            user = User.objects.get(id=user_id)
+            partner = User.objects.get(id=receiver_id)
+            messages = Message.objects.filter(
+                (Q(sender=user) & Q(receiver=partner)) |
+                (Q(sender=partner) & Q(receiver=user))
+            ).select_related('sender', 'receiver').order_by('message_sent_at')
+            
+            return [
+                {
+                    'id': msg.id,
+                    'sender': msg.sender.id,
+                    'receiver': msg.receiver.id,
+                    'message_content': msg.message_content,
+                    'message_sent_at': msg.message_sent_at.isoformat(),
+                    'is_read': msg.is_read,
+                }
+                for msg in messages
+            ]
+        except User.DoesNotExist:
+            return []
+        except Exception as e:
+            print(f"Error fetching messages: {e}")
+            return []
     async def disconnect(self, close_code):
         if hasattr(self, 'room_group_name'):
             await self.channel_layer.group_discard(
@@ -65,6 +110,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def handle_chat_message(self, data):
         message_content = data['message_content']
         receiver = data['receiver']
+        is_typing = data['is_typing']
 
         message_obj = await self.save_message(
             sender=self.user.id,
@@ -81,7 +127,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'receiver': receiver,
                 'message_content': message_content,
                 'message_sent_at': message_obj.message_sent_at.isoformat(),
-                'is_read': message_obj.is_read
+                'is_read': message_obj.is_read,
+                'is_typing': is_typing
             }
         )
 
@@ -93,7 +140,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'sender': self.user.id,
                 'sender_name': self.user_details['display_name'],
                 'is_typing': data['is_typing'],
-                'receiver': data['receiver']
             }
         )
 
@@ -105,7 +151,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'sender': event['sender'],
             'receiver': event['receiver'],
             'message_sent_at': event['message_sent_at'],
-            'is_read': event['is_read']
+            'is_read': event['is_read'],
+            'is_typing': event['is_typing'],
         }))
 
     async def chat_typing(self, event):
@@ -115,7 +162,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'sender': event['sender'],
                 'sender_name': event['sender_name'],
                 'is_typing': event['is_typing'],
-                'receiver': event['receiver']
             }))
 
     @database_sync_to_async
@@ -142,3 +188,4 @@ class ChatConsumer(AsyncWebsocketConsumer):
             receiver=receiver,   
             message_content=message_content
         )
+    

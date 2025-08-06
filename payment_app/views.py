@@ -158,7 +158,7 @@ class PaymentDataAPIView(APIView):
     """
     schema = AutoSchema()
     def get(self, request, *args, **kwargs):
-        subscriptions=Subscriptions.objects.filter(student_id=request.user).select_related('student_id', 'transaction_id').order_by('-subscription_date')
+        subscriptions=Subscriptions.objects.select_related('transaction_id','student_id').filter(student_id=request.user).order_by('-subscription_date')
 
         serializer=SubscriptionsSerializer(subscriptions, many=True)        
         return Response(
@@ -182,7 +182,7 @@ class PaymentProcessingAPIView(APIView):
             payment = Transactions.objects.filter(student_id=request.user).select_related('student_id').order_by('-transaction_date').first()
 
             now = timezone.now()
-            active_subscriptions = Subscriptions.objects.filter(
+            active_subscriptions = Subscriptions.objects.select_related('student_id','transaction_id').filter(
                 student_id=request.user,
                 transaction_id__transaction_status='completed',  
                 subscription_start_date__lte=now,

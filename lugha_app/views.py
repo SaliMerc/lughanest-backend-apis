@@ -769,7 +769,7 @@ class CourseItemsViewSet(viewsets.ViewSet):
         enrolled_course_ids = set()
         if request.user.is_authenticated:
             enrolled_course_ids = set(
-                EnrolledCourses.objects.filter(
+                EnrolledCourses.objects.select_related("course_name", "student").filter(
                     student=request.user,
                     is_enrolled=True
                 ).values_list('course_name_id', flat=True)
@@ -793,7 +793,7 @@ class CourseItemsViewSet(viewsets.ViewSet):
         course_name = serializer.validated_data['course_name']
         course_level = serializer.validated_data['course_level']
 
-        already_enrolled = EnrolledCourses.objects.filter(
+        already_enrolled = EnrolledCourses.objects.select_related("course_name", "student").filter(
             student=student,
             course_name=course_name,
             course_level=course_level
@@ -822,7 +822,7 @@ class CourseItemsViewSet(viewsets.ViewSet):
         enrolled_courses = EnrolledCourses.objects.filter(
             student=request.user,
             is_enrolled=True
-        ).select_related('course_name')
+        ).select_related('course_name','student')
 
 
         ongoing_courses = []
@@ -864,7 +864,7 @@ class CourseItemsViewSet(viewsets.ViewSet):
             student=request.user
         )
 
-        course_modules = CourseModule.objects.filter(
+        course_modules = CourseModule.objects.select_related('course').filter(
             course=enrolled_course.course_name
         ).order_by('module_order')
 
@@ -891,8 +891,8 @@ class CourseItemsViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
 
         try:
-            with transaction.atomic():  # Explicit transaction block
-                completion, created = LessonCompletion.objects.get_or_create(
+            with transaction.atomic(): 
+                completion, created = LessonCompletion.objects.select_related('lesson','lesson_student').get_or_create(
                     lesson_student=request.user,
                     lesson=lesson,
                     defaults=serializer.validated_data
@@ -958,7 +958,6 @@ class PartnerViewSet(viewsets.ViewSet):
                 ).values('student').distinct()
             )
         
-        # Serialize the data
         user_serializer = PartnerUserSerializer(users_queryset, many=True, context={'request': request})
         
         return Response({

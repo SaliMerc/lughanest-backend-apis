@@ -5,7 +5,7 @@ from rest_framework import status
 from chats_app.serializers import *
 from chats_app.models import Message
 from rest_framework.schemas import AutoSchema
-from django.db.models import Q
+from django.db.models import Q, Case, When, F, IntegerField, Max
 from lugha_app.models import MyUser
 
 from lugha_app.utils import has_active_subscription
@@ -18,25 +18,29 @@ class LatestMessagesAPIView(APIView):
     schema = AutoSchema()
     def get(self, request, *args, **kwargs):
         user = request.user
-        all_messages = Message.objects.filter(Q(sender=user) | Q(receiver=user)).order_by('-message_sent_at')
 
-        conversation_partners = set()
-        last_messages = []
+        latest_message_ids = Message.objects.filter(
+            Q(sender=user) | Q(receiver=user)
+        ).annotate(
+            partner_id=Case(
+                When(sender=user, then=F('receiver')),
+                When(receiver=user, then=F('sender')),
+                output_field=IntegerField()
+            )
+        ).values('partner_id').annotate(
+            latest_id=Max('id') 
+        ).values_list('latest_id', flat=True)
 
-        for msg in all_messages:
-            if msg.sender == user:
-                partner = msg.receiver
-            else:
-                partner = msg.sender
+        latest_messages = Message.objects.filter(
+            id__in=latest_message_ids
+        ).select_related('sender', 'receiver').order_by('-message_sent_at')
 
-            if partner.id not in conversation_partners:
-                conversation_partners.add(partner.id)
-                last_messages.append(msg)
-        serializer=MessageOverviewSerializer(last_messages, many=True, context={'request': request})        
+        serializer = MessageOverviewSerializer(latest_messages, many=True, context={'request': request})
+        
         return Response(
             {
-                "message":"Latest message retrieved sucessfully",
-                "data":serializer.data
+                "message": "Latest messages retrieved successfully",
+                "data": serializer.data
             },
             status=status.HTTP_200_OK
         )

@@ -25,5 +25,11 @@ class Message(models.Model):
     message_sent_at=models.DateTimeField(auto_now_add=True)
     is_read=models.BooleanField(default=False)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['sender', 'receiver', 'message_sent_at']),
+            models.Index(fields=['message_sent_at']),
+        ]
+
     def __str__(self):
         return self.message_content

@@ -168,7 +168,7 @@ ASGI_APPLICATION = 'LughaNestBackend.asgi.application'
 
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels_redis.pubsub.RedisPubSubChannelLayer",  
+        "BACKEND": "channels_redis.pubsub.RedisChannelLayer",  
         "CONFIG": {
             "hosts": [("localhost", 6379)],
         },

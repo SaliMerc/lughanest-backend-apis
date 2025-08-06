@@ -7,7 +7,7 @@ def has_active_subscription(user):
     True if the user has an active subscription, False otherwise.
     """
     now = timezone.now()
-    active_subscriptions = Subscriptions.objects.filter(
+    active_subscriptions = Subscriptions.objects.select_related('student_id','transaction_id').filter(
         student_id=user,  
         transaction_id__transaction_status='completed',
         subscription_start_date__lte=now,
