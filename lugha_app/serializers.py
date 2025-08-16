@@ -7,6 +7,7 @@ from django.db.models import Count
 from datetime import timedelta
 from django.utils import timezone
 
+
 class UserSerializer(serializers.ModelSerializer):
     profile_picture_url = serializers.SerializerMethodField()
 

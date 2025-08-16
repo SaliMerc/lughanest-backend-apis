@@ -156,7 +156,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
 
     async def chat_typing(self, event):
-        if self.scope['user'].id == event['receiver']:
+        # if self.scope['user'].id == event['receiver']:
             await self.send(text_data=json.dumps({
                 'type': 'typing',
                 'sender': event['sender'],

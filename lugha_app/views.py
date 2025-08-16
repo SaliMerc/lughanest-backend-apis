@@ -547,15 +547,28 @@ class UserViewSet(viewsets.ViewSet):
         user = request.user
         """Retrieve the old email in case the user changes it during profile update"""
         old_email=user.email
+
+        data = request.data.copy()  
+    
+        if any(key.startswith('languages_spoken') for key in data):
+            languages = []
+            i = 0
+            while f'languages_spoken[{i}][language]' in data:
+                language_data = {
+                    'language': data.get(f'languages_spoken[{i}][language]'),
+                    'level': data.get(f'languages_spoken[{i}][level]')
+                }
+                languages.append(language_data)
+                i += 1
+            data['languages_spoken'] = languages
+
         serializer = UserSerializer(user, data=request.data, partial=True, context={'request': request})
+        
 
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         new_email = serializer.validated_data.get('email')
-        profile_picture = serializer.validated_data.get('profile_picture')
-        # profile_picture = serializer.validated_data.get('profile_picture')
-        # print(profile_picture)
         if new_email and new_email!= old_email:
             if MyUser.objects.filter(email=new_email).exists():
                 return Response({"message": "A user with this email already exists, please choose a new email."}, status=status.HTTP_400_BAD_REQUEST)
