@@ -8,9 +8,15 @@ from django.contrib.auth import get_user_model
 from chats_app.models import Message
 from django.db.models import Q
 
+import asyncio
+
 User = get_user_model()
 
 class ChatConsumer(AsyncWebsocketConsumer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.keepalive_task = None
+
     async def connect(self):
         query_string = self.scope['query_string'].decode('utf-8')
         params = parse_qs(query_string)
@@ -50,8 +56,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
         await self.accept()
 
+        self.keepalive_task = asyncio.create_task(self.send_pings())
+
         await self.send_message_history()
 
+    async def send_pings(self):
+        """Sending ping every minute to keep the connection alive"""
+        try:
+            while True:
+                await asyncio.sleep(60)
+                await self.send(text_data=json.dumps({"type": "ping"}))
+        except Exception:
+            pass
     async def send_message_history(self):
         messages = await self.get_messages(self.user_id, self.receiver_id)
         await self.send(text_data=json.dumps({

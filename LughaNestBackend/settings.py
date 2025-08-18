@@ -165,18 +165,32 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 """Channels setup"""
 ASGI_APPLICATION = 'LughaNestBackend.asgi.application'  
 
-ASGI_THREADS = 100
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 
-CHANNELS_WEBSOCKET_TIMEOUT = 1800
+def _channels_host(url: str):
+    if url.startswith("rediss://"):
+        return {"address": url, "ssl": True}
+    return url
 
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+        "CONFIG": {  
+            "hosts": [_channels_host(REDIS_URL)],         
+            "symmetric_encryption_keys": [SECRET_KEY],  
+            "channel_capacity": {
+                "http.request": 2000,  
+                "websocket.receive": 1000, 
+            }
         },
-    },
+    }
 }
+
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels.layers.InMemoryChannelLayer",
+#     },
+# }
 
 ROOT_URLCONF = 'LughaNestBackend.urls'
 
