@@ -13,10 +13,6 @@ import asyncio
 User = get_user_model()
 
 class ChatConsumer(AsyncWebsocketConsumer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.keepalive_task = None
-
     async def connect(self):
         query_string = self.scope['query_string'].decode('utf-8')
         params = parse_qs(query_string)
@@ -56,18 +52,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
         await self.accept()
 
-        self.keepalive_task = asyncio.create_task(self.send_pings())
-
         await self.send_message_history()
-
-    async def send_pings(self):
-        """Sending ping every minute to keep the connection alive"""
-        try:
-            while True:
-                await asyncio.sleep(60)
-                await self.send(text_data=json.dumps({"type": "ping"}))
-        except Exception:
-            pass
+        
     async def send_message_history(self):
         messages = await self.get_messages(self.user_id, self.receiver_id)
         await self.send(text_data=json.dumps({
@@ -107,6 +93,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.room_group_name,
                 self.channel_name
             )
+        # if self.keepalive_task:
+        #     self.keepalive_task.cancel()
 
     async def receive(self, text_data):
         try:
