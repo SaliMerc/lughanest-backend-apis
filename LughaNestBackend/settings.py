@@ -109,38 +109,6 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-
-"""Redis caching set up"""
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-        "KEY_PREFIX": "lugha_app"  
-    },
-    "chats_app": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/2",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "SOCKET_CONNECT_TIMEOUT": 5,  
-            "SOCKET_TIMEOUT": 5,  
-        },
-        "KEY_PREFIX": "chats_app"  
-    },
-    "payment_app": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/3",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
-        },
-        "KEY_PREFIX": "payment_app"
-    }
-}
-
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
 
@@ -171,6 +139,37 @@ def _channels_host(url: str):
     if url.startswith("rediss://"):
         return {"address": url, "ssl": True}
     return url
+
+"""Redis caching set up"""
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": _channels_host(REDIS_URL),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "KEY_PREFIX": "lugha_app"  
+    },
+    "chats_app": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": _channels_host(REDIS_URL),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "SOCKET_CONNECT_TIMEOUT": 5,  
+            "SOCKET_TIMEOUT": 5,  
+        },
+        "KEY_PREFIX": "chats_app"  
+    },
+    "payment_app": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": _channels_host(REDIS_URL),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
+        },
+        "KEY_PREFIX": "payment_app"
+    }
+}
 
 CHANNEL_LAYERS = {
     "default": {
