@@ -295,7 +295,7 @@ class UserViewSet(viewsets.ViewSet):
 
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.id))
-            reset_link = f"{request.scheme}:/{settings.FRONTEND_HOST}/change-password?u={uid}&t={token}"
+            reset_link = f"{settings.FRONTEND_HOST}/change-password?u={uid}&t={token}"
 
             send_mail(
                 subject='Password Reset Link',
