@@ -135,39 +135,17 @@ ASGI_APPLICATION = 'LughaNestBackend.asgi.application'
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 
-def _channels_host(url: str):
-    if url.startswith("rediss://"):
-        return {"address": url, "ssl": True}
-    return url
-
 """Redis caching set up"""
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": _channels_host(REDIS_URL),
+        "LOCATION": REDIS_URL, 
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-        "KEY_PREFIX": "lugha_app"  
-    },
-    "chats_app": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": _channels_host(REDIS_URL),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "SOCKET_CONNECT_TIMEOUT": 5,  
-            "SOCKET_TIMEOUT": 5,  
-        },
-        "KEY_PREFIX": "chats_app"  
-    },
-    "payment_app": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": _channels_host(REDIS_URL),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
-        },
-        "KEY_PREFIX": "payment_app"
+            "CONNECTION_POOL_KWARGS": {
+                "ssl_cert_reqs": None
+            },
+        }
     }
 }
 
@@ -175,7 +153,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {  
-            "hosts": [_channels_host(REDIS_URL)],         
+            "hosts": [REDIS_URL],         
             "symmetric_encryption_keys": [SECRET_KEY],  
             "channel_capacity": {
                 "http.request": 2000,  
