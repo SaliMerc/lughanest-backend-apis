@@ -133,7 +133,7 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 """Channels setup"""
 ASGI_APPLICATION = 'LughaNestBackend.asgi.application'  
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+REDIS_URL = config("REDIS_URL", default="redis://127.0.0.1:6379/0")
 
 """Redis caching set up"""
 CACHES = {
