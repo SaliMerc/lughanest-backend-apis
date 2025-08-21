@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from datetime import timedelta
 from pathlib import Path
 import os
+import ssl
 
 from decouple import config
 
@@ -150,6 +151,8 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 """Channels setup"""
 ASGI_APPLICATION = 'LughaNestBackend.asgi.application'  
 
+RENDER = config('RENDER', default=False)
+
 REDIS_URL = config("REDIS_URL", default="redis://127.0.0.1:6379/0")
 
 """Redis caching set up"""
@@ -166,19 +169,39 @@ CACHES = {
     }
 }
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {  
-            "hosts": [REDIS_URL],         
-            "symmetric_encryption_keys": [SECRET_KEY],  
-            "channel_capacity": {
-                "http.request": 2000,  
-                "websocket.receive": 1000, 
-            }
-        },
+if RENDER:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+                "symmetric_encryption_keys": [SECRET_KEY],
+                "channel_capacity": {
+                    "http.request": 2000,
+                    "websocket.receive": 1000,
+                },
+                "connection_kwargs": {
+                    "ssl": True,
+                    "ssl_cert_reqs": ssl.CERT_NONE,
+                }
+            },
+        }
     }
-}
+
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {  
+                "hosts": [REDIS_URL],         
+                "symmetric_encryption_keys": [SECRET_KEY],  
+                "channel_capacity": {
+                    "http.request": 2000,  
+                    "websocket.receive": 1000, 
+                }
+            },
+        }
+    }
 
 # CHANNEL_LAYERS = {
 #     "default": {
