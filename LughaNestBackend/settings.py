@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from datetime import timedelta
 from pathlib import Path
 import os
-import ssl
 
 from decouple import config
 
@@ -169,39 +168,19 @@ CACHES = {
     }
 }
 
-if RENDER:
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [REDIS_URL],
-                "symmetric_encryption_keys": [SECRET_KEY],
-                "channel_capacity": {
-                    "http.request": 2000,
-                    "websocket.receive": 1000,
-                },
-                "connection_kwargs": {
-                    "ssl": True,
-                    "ssl_cert_reqs": ssl.CERT_NONE,
-                }
-            },
-        }
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {  
+            "hosts": [REDIS_URL],         
+            "symmetric_encryption_keys": [SECRET_KEY],  
+            "channel_capacity": {
+                "http.request": 2000,  
+                "websocket.receive": 1000, 
+            }
+        },
     }
-
-else:
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {  
-                "hosts": [REDIS_URL],         
-                "symmetric_encryption_keys": [SECRET_KEY],  
-                "channel_capacity": {
-                    "http.request": 2000,  
-                    "websocket.receive": 1000, 
-                }
-            },
-        }
-    }
+}
 
 # CHANNEL_LAYERS = {
 #     "default": {
