@@ -42,7 +42,7 @@ ALLOWED_HOSTS = ['localhost',
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1',
     'https://lughanest.vercel.app',
-    'hhttps://lughanest-backend-apis.onrender.com',
+    'https://lughanest-backend-apis.onrender.com',
 ]
 
 # Application definition
