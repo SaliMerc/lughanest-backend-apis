@@ -739,17 +739,10 @@ class BlogViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
     @action(detail=False, methods=['GET'], url_path='all-blog-items')
     def all_blog_items(self, request):
-        if (cached := cache.get("all_blogs")) is not None:
-            return Response(cached, status=status.HTTP_200_OK)
-      
         blogs=Blog.objects.order_by('-created_at')
-        serializer = BlogSerializer(blogs, many=True, context={'request': request})
-        cache.set("all_blogs", serializer.data, 1800) 
+        serializer = BlogSerializer(blogs, many=True, context={'request': request}) 
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-@receiver([post_save, post_delete], sender=Blog)
-def clear_blog_cache(**kwargs):
-    cache.delete("all_blogs")
+    
 """For retrieving the privacy policy and the terms and conditions"""
 class LegalItemsViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
@@ -766,13 +759,9 @@ class CourseItemsViewSet(viewsets.ViewSet):
             return [AllowAny()]
         return [IsAuthenticated()]
     @action(detail=False, methods=['GET'], url_path='available-courses')
-    def course_items(self,request):
-        if (cached := cache.get("all_course")) is not None:
-            return Response(cached, status=status.HTTP_200_OK)
-        
+    def course_items(self,request):        
         available_courses = Course.objects.all()
         serializer = CourseItemsSerializer(available_courses, many=True)
-        cache.set("all_course", serializer.data, 1800) 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['GET'], url_path='structured-available-courses')
