@@ -174,13 +174,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
 
     async def chat_typing(self, event):
-        # if self.scope['user'].id == event['receiver']:
-            await self.send(text_data=json.dumps({
-                'type': 'typing',
-                'sender': event['sender'],
-                'sender_name': event['sender_name'],
-                'is_typing': event['is_typing'],
-            }))
+        await self.send(text_data=json.dumps({
+            'type': 'typing',
+            'sender': event['sender'],
+            'sender_name': event['sender_name'],
+            'is_typing': event['is_typing'],
+        }))
 
     @database_sync_to_async
     def get_user(self, user_id):
