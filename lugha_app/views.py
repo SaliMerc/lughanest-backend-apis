@@ -817,6 +817,32 @@ class CourseItemsViewSet(viewsets.ViewSet):
                 return Response({"message":"You cannot enroll in more than one course without a subscription"}, status=status.HTTP_201_CREATED)
 
             serializer.save()
+            send_mail(
+                subject=f'Congratulations for enrolling in {course_name}',
+                message = f"""
+                    Hello {student.first_name},
+
+                    🎉 Welcome to {course_name}!
+
+                    We're thrilled to have you join our {course_level} level course. Your enrollment has been confirmed successfully.
+
+                    What's next?
+                    • Access your personalized learning dashboard
+                    • Track your progress and learning metrics
+                    • Start engaging with course materials
+                    • Connect with fellow students
+
+                    Your learning journey begins now! Log in to your account to explore the course content.
+
+                    Happy learning! 🌟
+
+                    Best regards,
+                    The LughaNest Team
+                    """,
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[student.email],
+                fail_silently=True
+            )
             return Response({"message":"You have successfully enrolled in this course"}, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['GET'], url_path='ongoing-and-completed-courses')
