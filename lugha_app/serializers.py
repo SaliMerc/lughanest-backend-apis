@@ -198,17 +198,22 @@ class CourseLessonsSerializer(serializers.ModelSerializer):
 class CourseModuleCompletionSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.ModuleProgress
-        fields = ['id','module','module_progress']
+        fields = ['id','module','module_progress','student']
         read_only_fields = ['student']
 
 class CourseModulesSerializer(serializers.ModelSerializer):
     module_lessons = CourseLessonsSerializer(many=True, read_only=True)
-    modules = CourseModuleCompletionSerializer(many=True, read_only=True)
+    modules = CourseModuleCompletionSerializer(
+        source='current_student_progress', 
+        many=True, 
+        read_only=True
+    )
 
     class Meta:
         model = models.CourseModule
         fields = ['id', 'course', 'module_title', 'module_description', 
                  'module_lessons', 'modules']
+    
 
 
 

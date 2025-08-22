@@ -892,14 +892,20 @@ class CourseItemsViewSet(viewsets.ViewSet):
             student=request.user
         )
 
-        course_modules = CourseModule.objects.select_related('course').filter(
-            course=enrolled_course.course_name
-        ).order_by('module_order')
+        course_modules = CourseModule.objects.filter(
+                    course=enrolled_course.course_name
+                ).prefetch_related(
+                    Prefetch(
+                        'modules',
+                        queryset=models.ModuleProgress.objects.filter(student=request.user),
+                        to_attr='current_student_progress'
+                    )
+                ).order_by('module_order')
+
 
         serializer = CourseModulesSerializer(course_modules, many=True,context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    """Contains all the modules for the course and the respective lessons under them."""
 
     @action(detail=False, methods=['GET', 'POST'], url_path='course-lesson-completion/(?P<lesson_id>[^/.]+)')
     def lesson_completion(self, request, lesson_id=None):

@@ -51,12 +51,10 @@ def update_course_completion(sender, instance, **kwargs):
             lesson__module_name=course_module
         ).count()
 
-        # Progress percentages
         completion_percentage = (completed_lessons / total_lessons) * 100
         module_completion_percentage = (module_completed_lessons / module_total_lessons) * 100
 
         try:
-            # Update course enrollment progress
             enrollment = EnrolledCourses.objects.get(
                 student=student,
                 course_name=course
