@@ -18,16 +18,28 @@ class MessageOverviewSerializer(serializers.ModelSerializer):
         return obj.receiver.display_name or obj.receiver.first_name
     
     def get_sender_profile_picture(self, obj):
+        if not obj.sender.profile_picture:
+                return None
+
+        if str(obj.sender.profile_picture).startswith("http"):
+            return str(obj.sender.profile_picture)
+
         request = self.context.get('request')
-        if obj.sender.profile_picture and request:
+        if request:
             return request.build_absolute_uri(obj.sender.profile_picture.url)
-        return None
+        return obj.sender.profile_picture.url
 
     def get_receiver_profile_picture(self, obj):
+        if not obj.receiver.profile_picture:
+            return None
+
+        if str(obj.receiver.profile_picture).startswith("http"):
+            return str(obj.receiver.profile_picture)
+
         request = self.context.get('request')
-        if obj.receiver.profile_picture and request:
+        if request:
             return request.build_absolute_uri(obj.receiver.profile_picture.url)
-        return None
+        return obj.receiver.profile_picture.url
 
 
 class SendMessageSerializer(serializers.ModelSerializer):

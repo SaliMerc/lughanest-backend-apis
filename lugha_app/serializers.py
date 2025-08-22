@@ -9,17 +9,23 @@ from django.utils import timezone
 
 
 class UserSerializer(serializers.ModelSerializer):
-    profile_picture_url = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = MyUser
-        fields = ['id', 'username', 'email','first_name','last_name','display_name','city','country','is_active','profile_picture','profile_picture_url','accepted_terms_and_conditions','languages_spoken','updated_email']
+        fields = ['id', 'username', 'email','first_name','last_name','display_name','city','country','is_active','profile_picture','accepted_terms_and_conditions','languages_spoken','updated_email']
 
-    def get_profile_picture_url(self, obj):
+    def get_profile_picture(self, obj):
+        if not obj.profile_picture:
+            return None
+
+        if str(obj.profile_picture).startswith("http"):
+            return str(obj.profile_picture)
+
         request = self.context.get('request')
-        if obj.profile_picture and request:
+        if request:
             return request.build_absolute_uri(obj.profile_picture.url)
-        return None
+        return obj.profile_picture.url
 
     def create(self, validated_data):
         validated_data.pop('is_active', None)
@@ -83,12 +89,18 @@ class PartnerUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = MyUser
         fields = ['id', 'username', 'display_name', 'profile_picture_url', 'courses']
-    
+
     def get_profile_picture_url(self, obj):
+        if not obj.profile_picture:
+            return None
+
+        if str(obj.profile_picture).startswith("http"):
+            return str(obj.profile_picture)
+
         request = self.context.get('request')
-        if obj.profile_picture and request:
+        if request:
             return request.build_absolute_uri(obj.profile_picture.url)
-        return None
+        return obj.profile_picture.url
     
     def get_courses(self, obj):
         # Get the user's enrolled courses
