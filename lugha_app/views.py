@@ -2,6 +2,11 @@ import random
 import string
 import datetime
 from logging import raiseExceptions
+
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+
 from urllib import request
 from django.db.models import Min, Prefetch
 from payment_app.models import Transactions, Subscriptions
@@ -177,13 +182,30 @@ class UserViewSet(viewsets.ViewSet):
 
             activation_link=f"{settings.FRONTEND_HOST}/account-verification?t={verify_token}"
 
-            send_mail(
+            context = {
+                'user': user,
+                'activation_link': activation_link
+            }
+
+            html_content = render_to_string('emails/signup-verification.html', context)
+            text_content = strip_tags(html_content)
+
+            email = EmailMultiAlternatives(
                 subject='LughaNest Account Verification',
-                message=f"Hello {user.first_name},\n\nHere is your account activation link:\n\n{activation_link}, follow thee link to verify and activate your account.\n\nLughaNest Team",
+                body=text_content,
                 from_email=settings.EMAIL_HOST_USER,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
+                to=[user.email],
+    )
+            email.attach_alternative(html_content, "text/html")
+            email.send(fail_silently=False)
+
+            # send_mail(
+            #     subject='LughaNest Account Verification',
+            #     message=f"Hello {user.first_name},\n\nHere is your account activation link:\n\n{activation_link}, follow thee link to verify and activate your account.\n\nLughaNest Team",
+            #     from_email=settings.EMAIL_HOST_USER,
+            #     recipient_list=[user.email],
+            #     fail_silently=False,
+            # )
             return Response(
                 {"message": "Activation link has been sent to your email address"},
                 status=status.HTTP_200_OK
