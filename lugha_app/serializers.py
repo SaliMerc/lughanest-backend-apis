@@ -9,13 +9,13 @@ from django.utils import timezone
 
 
 class UserSerializer(serializers.ModelSerializer):
-    profile_picture = serializers.SerializerMethodField()
+    profile_picture_url = serializers.SerializerMethodField()
 
     class Meta:
         model = MyUser
-        fields = ['id', 'username', 'email','first_name','last_name','display_name','city','country','is_active','profile_picture','accepted_terms_and_conditions','languages_spoken','updated_email']
+        fields = ['id', 'username', 'email','first_name','last_name','display_name','city','country','is_active','profile_picture','accepted_terms_and_conditions','languages_spoken','updated_email','profile_picture_url']
 
-    def get_profile_picture(self, obj):
+    def get_profile_picture_url(self, obj):
         if not obj.profile_picture:
             return None
 

@@ -114,16 +114,19 @@
 <body>
     <div class="email-container">
         <div class="email-header">
-            <div class="logo">LughaNest Account Verification</div>
+            <div class="logo">LughaNest</div>
         </div>
+
         
-        <div class="email-body">         
+        
+        <div class="email-body">   
+             <h2 >Account Verification</h2>      
             <p>Hello {{user.first_name}},</p>
 
                
             <p>Thank you for creating an account with LughaNest! To complete your registration, please verify your email address by clicking the button below:</p>
             
-              <div class="text-center">
+              <div class="">
                 <a href="{{activation_link}}" class="button">Activate Account</a>
             </div>
             
