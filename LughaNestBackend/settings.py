@@ -31,6 +31,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-m0oqivi1$3o19^l$lu6gfum35n-y@(k@0t$kw_k)#px_w@&o04'
 
 # SECURITY WARNING: don't run with debug turned on in production!
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
 DEBUG = config('DEBUG_STATUS')
 
 ALLOWED_HOSTS = ['localhost', 
