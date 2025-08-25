@@ -128,7 +128,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def handle_chat_message(self, data):
         message_content = data['message_content']
         receiver = data['receiver']
-        is_typing = data['is_typing']
 
         message_obj = await self.save_message(
             sender=self.user.id,
@@ -146,7 +145,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'message_content': message_content,
                 'message_sent_at': message_obj.message_sent_at.isoformat(),
                 'is_read': message_obj.is_read,
-                'is_typing': is_typing
             }
         )
 
@@ -170,7 +168,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'receiver': event['receiver'],
             'message_sent_at': event['message_sent_at'],
             'is_read': event['is_read'],
-            'is_typing': event['is_typing'],
         }))
 
     # async def chat_typing(self, event):
