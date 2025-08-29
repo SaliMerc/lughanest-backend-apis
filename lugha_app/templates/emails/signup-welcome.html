@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LughaNest Account Verification</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Lora', sans-serif;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+            color: #000000;
+            line-height: 1.6;
+            font-weight: 600;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+        }
+        
+        .email-header {
+            padding: 20px;
+            text-align: left;
+            background-color: #FAF3E0;
+            margin: 20px;
+            border-radius: 5px;
+        }
+        
+        .email-body {
+            padding: 30px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin: 20px;
+            border: 5px solid #FAF3E0;
+        }
+        
+        .email-footer {
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #000000;
+            background-color: #FAF3E0;
+            margin: 20px;
+            border-radius: 5px;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Poppins', sans-serif;
+            color: #000000;
+        }
+        
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #FAF3E0;
+            color: #000000 !important;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 20px 0;
+            text-align: center;
+            border: none;
+            cursor: pointer;
+        }
+        .divider {
+            height: 1px;
+            background-color: #A78F74;
+            margin: 25px 0;
+        }
+        
+        .logo {
+            font-family: 'Poppins', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            color: #000000;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .activation-link {
+            word-break: break-all;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px dashed #A78F74;
+            font-family: monospace;
+        }
+        
+        /* Responsive styles */
+        @media screen and (max-width: 600px) {
+            .email-body {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .button {
+                display: block;
+                margin: 20px auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <div class="logo">LughaNest</div>
+        </div>
+
+        
+        
+        <div class="email-body">   
+             <h2 >Account Verification</h2>      
+            <p>Hello {{user.first_name}},</p>
+
+               
+            <p>Thank you for creating an account with LughaNest! To complete your registration, please verify your email address by clicking the button below:</p>
+            
+              <div class="">
+                <a href="{{activation_link}}" class="button">Activate Account</a>
+            </div>
+            
+            <p>Or follow the link to verify and activate your account.</p>
+            
+                  <p class="activation-link">{{activation_link}}</p>
+          
+            
+            <div class="divider"></div>
+            
+            <p>LughaNest Team</p>
+        </div>
+
+          <div class="email-footer">
+            <p>&copy; LughaNest. All rights reserved.</p>
+            <p>If you need assistance, please contact our support team.</p>
+        </div>
+    </div>
+</body>
+</html>
