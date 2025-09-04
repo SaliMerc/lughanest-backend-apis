@@ -40,7 +40,7 @@ DEBUG = config('DEBUG_STATUS')
 ALLOWED_HOSTS = ['localhost', 
                  '127.0.0.1', 
                  'lughanest-backend-apis.onrender.com',
-                 '355b49a42c0a.ngrok-free.app'
+                 '3621572eda2a.ngrok-free.app'
                  ]
 
 CSRF_TRUSTED_ORIGINS = [

@@ -70,6 +70,9 @@ class GoogleAuthView(APIView):
                                                    defaults={'username': email, 'first_name': first_name,
                                                              'last_name': last_name, 'display_name':display_name,'profile_picture':profile_picture,'accepted_terms_and_conditions':True}
                                                    )
+            subscription_items = SubscriptionItem.objects.first()
+            subscription_serializer = SubscriptionItemsSerializer(subscription_items)
+
             if not created:
                 user.last_login = datetime.datetime.now()
                 user.save()
@@ -84,6 +87,18 @@ class GoogleAuthView(APIView):
                 )
             serializer= UserSerializer(user, context={'request': request})
 
+            """Check if user has requested for their account to be deleted"""
+            if user.scheduled_deletion_date:
+                deletion_data= {
+                    "is_scheduled_for_deletion": True,
+                    "scheduled_date": user.scheduled_deletion_date,
+                    "message": f"Account is scheduled for deletion on {user.scheduled_deletion_date}"
+                }
+            else:
+                deletion_data={
+                    "is_scheduled_for_deletion": False,
+                    "message": "Account is not scheduled for deletion"
+                }
             if user:
                 """Get all active subscriptions for the user"""
                 now = timezone.now()
@@ -93,7 +108,7 @@ class GoogleAuthView(APIView):
                 subscription_start_date__lte=now,
                 subscription_end_date__gte=now 
             )
-                
+                                
                 """Check if user has any active subscription"""
                 has_active_subscription = active_subscriptions.exists()
 
@@ -115,7 +130,9 @@ class GoogleAuthView(APIView):
                         "subscription_type": 'None',
                         "start_date": 'None',
                         "end_date": 'None'
-                    }    
+                    } 
+
+              
 
             refresh = RefreshToken.for_user(user)
             response= Response({
@@ -125,7 +142,9 @@ class GoogleAuthView(APIView):
                     "subscription_status": {
                         "has_active_subscription": has_active_subscription,
                         "active_plan": active_plan
-                    }
+                    },
+                    "subscription_items":subscription_serializer.data,
+                    "deletion_data":deletion_data,
             },
                 "access_token": str(refresh.access_token),
                 "refresh": str(refresh)
@@ -444,6 +463,21 @@ class UserViewSet(viewsets.ViewSet):
         user = authenticate(username=username, password=password)
         serializer=UserSerializer(user,context={'request': request})
 
+        subscription_items = SubscriptionItem.objects.first()
+        subscription_serializer = SubscriptionItemsSerializer(subscription_items)
+
+        """Check if user has requested for their account to be deleted"""
+        if user.scheduled_deletion_date:
+            deletion_data= {
+                "is_scheduled_for_deletion": True,
+                "scheduled_date": user.scheduled_deletion_date,
+                "message": f"Account is scheduled for deletion on {user.scheduled_deletion_date}"
+            }
+        else:
+            deletion_data={
+                "is_scheduled_for_deletion": False,
+                "message": "Account is not scheduled for deletion"
+            }
         if user:
             """Get all active subscriptions for the user"""
             now = timezone.now()
@@ -485,7 +519,10 @@ class UserViewSet(viewsets.ViewSet):
                 "subscription_status": {
                     "has_active_subscription": has_active_subscription,
                     "active_plan": active_plan
-                }
+                },
+                "subscription_items":subscription_serializer.data,
+                "deletion_data":deletion_data,
+
             },
                 "access_token":str(refresh.access_token),
                 "refresh": str(refresh)
@@ -977,7 +1014,7 @@ class CourseItemsViewSet(viewsets.ViewSet):
 class SubscriptionItemsViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
     @action(detail=False, methods=['GET'], url_path='subscription-items')
-    def legal_items(self, request):
+    def subscription_items(self, request):
         subscription_items = SubscriptionItem.objects.first()
         serializer = SubscriptionItemsSerializer(subscription_items)
         return Response(serializer.data, status=status.HTTP_200_OK)
