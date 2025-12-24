@@ -40,12 +40,14 @@ DEBUG = config('DEBUG_STATUS')
 ALLOWED_HOSTS = ['localhost', 
                  '127.0.0.1', 
                  'lughanest-backend-apis.onrender.com',
-                 '3621572eda2a.ngrok-free.app'
+                 '3621572eda2a.ngrok-free.app',
+                 'lughanest.e-samnlab.me'
                  ]
 
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1',
     'https://lughanest.vercel.app',
+    'https://lughanest.e-samnlab.me'
     'https://lughanest-backend-apis.onrender.com',
 ]
 
@@ -85,7 +87,6 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -286,15 +287,19 @@ REST_FRAMEWORK = {
 
 """JWT Setup"""
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=5),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
-
-    'AUTH_COOKIE': 'access',
-    'REFRESH_COOKIE': 'refresh_token',
-
-    'AUTH_COOKIE_HTTP_ONLY': True,
-    'AUTH_COOKIE_SECURE': True,
-    'AUTH_COOKIE_SAMESITE': 'Lax',
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    
+    "AUTH_COOKIE": "access-token",           
+    "REFRESH_COOKIE": "refresh-token",  
+         
+    "AUTH_COOKIE_SECURE": config('TOKEN_SETTING'),             
+    "AUTH_COOKIE_HTTP_ONLY": True,      
+    "AUTH_COOKIE_SAMESITE": "Strict",          
+    "AUTH_COOKIE_DOMAIN": None,
+    "AUTH_COOKIE_PATH": "/",
 }
 
 """For sending email"""

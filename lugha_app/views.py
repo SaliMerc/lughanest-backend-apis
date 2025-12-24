@@ -136,7 +136,7 @@ class GoogleAuthView(APIView):
 
             refresh = RefreshToken.for_user(user)
             response= Response({
-                "status":"Authentication successful.",
+                "message":"Authentication successful.",
                 "user": {
                     **serializer.data,
                     "subscription_status": {
@@ -147,25 +147,27 @@ class GoogleAuthView(APIView):
                     "deletion_data":deletion_data,
             },
                 "access_token": str(refresh.access_token),
-                "refresh": str(refresh)
             })
-            # response.set_cookie(
-            #     settings.SIMPLE_JWT['AUTH_COOKIE'],
-            #     str(refresh.access_token),
-            #     max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
-            #     secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-            #     httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-            #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            # )
-            #
-            # response.set_cookie(
-            #     settings.SIMPLE_JWT['REFRESH_COOKIE'],
-            #     str(refresh),
-            #     max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
-            #     secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-            #     httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-            #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            # )
+            
+            response.set_cookie(
+                key=settings.SIMPLE_JWT['AUTH_COOKIE'],           
+                value=str(refresh.access_token),
+                max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),  
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],   
+                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                path="/",
+        )
+            
+            response.set_cookie(
+                key=settings.SIMPLE_JWT['REFRESH_COOKIE'],        
+                value=str(refresh),
+                max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),  
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                httponly=True,                                    
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                path="/",
+        )
 
             return response
         except Exception as e:
@@ -525,26 +527,28 @@ class UserViewSet(viewsets.ViewSet):
 
             },
                 "access_token":str(refresh.access_token),
-                "refresh": str(refresh)
+                # "refresh": str(refresh)
             })
 
-            # response.set_cookie(
-            #     settings.SIMPLE_JWT['AUTH_COOKIE'],
-            #     str(refresh.access_token),
-            #     max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
-            #     secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-            #     httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-            #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            # )
-            #
-            # response.set_cookie(
-            #     settings.SIMPLE_JWT['REFRESH_COOKIE'],
-            #     str(refresh),
-            #     max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
-            #     secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-            #     httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
-            #     samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            # )
+            response.set_cookie(
+                key=settings.SIMPLE_JWT['AUTH_COOKIE'],           
+                value=str(refresh.access_token),
+                max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),  
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],   
+                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                path="/",
+        )
+            
+            response.set_cookie(
+                key=settings.SIMPLE_JWT['REFRESH_COOKIE'],        
+                value=str(refresh),
+                max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),  
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                httponly=True,                                    
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                path="/",
+        )
 
             return response
         return Response({"message": "Wrong credentials"}, status=status.HTTP_401_UNAUTHORIZED)
