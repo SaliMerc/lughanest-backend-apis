@@ -47,7 +47,7 @@ ALLOWED_HOSTS = ['localhost',
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1',
     'https://lughanest.vercel.app',
-    'https://lughanest.e-samnlab.me'
+    'https://lughanest.e-samnlab.me',
     'https://lughanest-backend-apis.onrender.com',
 ]
 
